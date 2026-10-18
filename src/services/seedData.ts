@@ -10,6 +10,25 @@ export const DUBAI_IMAGE = dubaiSilkImg;
 export const KIMONO_IMAGE = openKimonoImg;
 export const ATELIER_IMAGE = craftsmanshipImg;
 
+export const INITIAL_CURRENCY_RATES = {
+  USD: { rate: 1.0, symbol: '$', position: 'prefix' as const },
+  AED: { rate: 3.67, symbol: ' AED', position: 'suffix' as const },
+  SAR: { rate: 3.75, symbol: ' SAR', position: 'suffix' as const },
+  GBP: { rate: 0.79, symbol: '£', position: 'prefix' as const },
+  PKR: { rate: 278.0, symbol: 'Rs. ', position: 'prefix' as const }
+};
+
+export const INITIAL_NAV_MENU_ITEMS = [
+  { id: 'nav-home', label: 'Home', page: 'home', isActive: true, order: 1 },
+  { id: 'nav-collections', label: 'Collections', page: 'shop', categoryFilter: 'All', isActive: true, order: 2 },
+  { id: 'nav-stoles', label: 'Stoles & Deals', page: 'shop', categoryFilter: 'Abaya & Stole Combo Deals', badge: 'New', isActive: true, order: 3 },
+  { id: 'nav-shop', label: 'Shop All', page: 'shop', categoryFilter: 'All', isActive: true, order: 4 },
+  { id: 'nav-coming-soon', label: 'Coming Soon', page: 'coming-soon', badge: 'Preview', isActive: false, order: 5 }, // Inactive by default per user request
+  { id: 'nav-atelier', label: 'Atelier & Heritage', page: 'about', isActive: true, order: 6 },
+  { id: 'nav-faqs', label: 'FAQs', page: 'faqs', isActive: true, order: 7 },
+  { id: 'nav-contact', label: 'Contact', page: 'contact', isActive: true, order: 8 }
+];
+
 export const INITIAL_SETTINGS: StoreSettings = {
   brandName: 'Emerald Haya',
   tagline: 'Luxury Modest Fashion & Designer Apparel',
@@ -19,6 +38,8 @@ export const INITIAL_SETTINGS: StoreSettings = {
   storePhone: '+92316217618',
   address: 'Emerald Haya Atelier, Pakistan · Worldwide Express Delivery',
   freeShippingThreshold: 250,
+  standardShippingFee: 15,
+  taxPercent: 0,
   currency: 'USD',
   googleFormUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSc_Example/viewform?embedded=true',
   announcementText: 'Complimentary Silk Sheila Hijab with every Luxury Abaya order · WhatsApp: +92 316 217618',
@@ -27,7 +48,10 @@ export const INITIAL_SETTINGS: StoreSettings = {
   tiktokUrl: 'https://tiktok.com/@emeraldhayaofficial',
   youtubeUrl: 'https://youtube.com/@emeraldhayaofficial',
   pinterestUrl: 'https://pinterest.com/emeraldhayaofficial',
-  imgbbApiKey: 'd497422bf88630579f6e862ddfab3590'
+  imgbbApiKey: 'd497422bf88630579f6e862ddfab3590',
+  isComingSoonActive: false, // Inactive right now, can be activated from admin
+  currencyRates: INITIAL_CURRENCY_RATES,
+  navMenuItems: INITIAL_NAV_MENU_ITEMS
 };
 
 export const INITIAL_HERO_SLIDES: HeroSlide[] = [

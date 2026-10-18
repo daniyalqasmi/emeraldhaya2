@@ -117,6 +117,22 @@ export interface HeroSlide {
   isActive: boolean;
 }
 
+export interface CurrencyConfig {
+  rate: number;
+  symbol: string;
+  position: 'prefix' | 'suffix';
+}
+
+export interface NavMenuItem {
+  id: string;
+  label: string;
+  page: string;
+  categoryFilter?: string;
+  badge?: string;
+  isActive: boolean;
+  order: number;
+}
+
 export interface StoreSettings {
   brandName: string;
   tagline: string;
@@ -126,6 +142,8 @@ export interface StoreSettings {
   storePhone: string;
   address: string;
   freeShippingThreshold: number;
+  standardShippingFee?: number;
+  taxPercent?: number;
   currency: 'USD' | 'AED' | 'SAR' | 'GBP' | 'PKR';
   googleFormUrl: string;
   announcementText: string;
@@ -135,6 +153,9 @@ export interface StoreSettings {
   youtubeUrl?: string;
   pinterestUrl?: string;
   imgbbApiKey?: string;
+  isComingSoonActive: boolean; // Active or Deactivated toggle
+  currencyRates?: Record<CurrencyCode, CurrencyConfig>;
+  navMenuItems?: NavMenuItem[];
 }
 
 export interface BlogPost {

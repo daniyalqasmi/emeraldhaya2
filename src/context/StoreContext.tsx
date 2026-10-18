@@ -9,9 +9,12 @@ import {
   HeroSlide, 
   Review, 
   CurrencyCode, 
-  OrderStatus 
+  OrderStatus,
+  NavMenuItem,
+  CurrencyConfig
 } from '../types';
 import { StorageService } from '../services/storageService';
+import { INITIAL_CURRENCY_RATES, INITIAL_NAV_MENU_ITEMS } from '../services/seedData';
 
 interface Toast {
   id: string;
@@ -81,6 +84,9 @@ interface StoreContextType {
   // Settings & Configuration
   settings: StoreSettings;
   updateSettings: (newSettings: StoreSettings) => void;
+  updateNavMenuItems: (items: NavMenuItem[]) => void;
+  toggleComingSoon: (active: boolean) => void;
+  updateCurrencyRates: (rates: Record<CurrencyCode, CurrencyConfig>) => void;
 
   // Hero Slides
   heroSlides: HeroSlide[];
@@ -136,7 +142,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [categories, setCategories] = useState<Category[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
-  const [settings, setSettings] = useState<StoreSettings>(StorageService.getSettings());
+  const [settings, setSettings] = useState<StoreSettings>(() => {
+    const s = StorageService.getSettings();
+    return {
+      ...s,
+      isComingSoonActive: s.isComingSoonActive ?? false, // Default inactive per user request
+      currencyRates: s.currencyRates || INITIAL_CURRENCY_RATES,
+      navMenuItems: s.navMenuItems || INITIAL_NAV_MENU_ITEMS
+    };
+  });
   const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
 
@@ -613,6 +627,37 @@ Kindly confirm availability and atelier dispatch timeline. Thank you!`;
     );
   };
 
+  // Nav Menu & Coming Soon & Currency Helpers
+  const updateNavMenuItems = (items: NavMenuItem[]) => {
+    const updated = {
+      ...settings,
+      navMenuItems: items
+    };
+    StorageService.saveSettings(updated);
+    setSettings(updated);
+    showToast('Navigation menu updated');
+  };
+
+  const toggleComingSoon = (active: boolean) => {
+    const updated = {
+      ...settings,
+      isComingSoonActive: active
+    };
+    StorageService.saveSettings(updated);
+    setSettings(updated);
+    showToast(`Coming Soon preview is now ${active ? 'ACTIVE' : 'DEACTIVATED'}`);
+  };
+
+  const updateCurrencyRates = (rates: Record<CurrencyCode, CurrencyConfig>) => {
+    const updated = {
+      ...settings,
+      currencyRates: rates
+    };
+    StorageService.saveSettings(updated);
+    setSettings(updated);
+    showToast('Currency rates updated successfully');
+  };
+
   // Settings
   const updateSettings = (newSettings: StoreSettings) => {
     StorageService.saveSettings(newSettings);
@@ -633,7 +678,7 @@ Kindly confirm availability and atelier dispatch timeline. Thank you!`;
       ...reviewData,
       id: `rev-${Date.now()}`,
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      isApproved: true // Auto-approved for instant satisfaction, admin can moderate
+      isApproved: true
     };
     const updated = StorageService.addReview(newRev);
     setReviews(updated);
@@ -647,9 +692,10 @@ Kindly confirm availability and atelier dispatch timeline. Thank you!`;
     showToast(`Review ${isApproved ? 'Approved' : 'Hidden'}`);
   };
 
-  // Currency Converter & Formatter
+  // Currency Converter & Formatter (Dynamic rates from StoreSettings)
   const formatPrice = (usdAmount: number): string => {
-    const curr = CURRENCY_RATES[currency] || CURRENCY_RATES.USD;
+    const customRate = settings.currencyRates?.[currency];
+    const curr = customRate || CURRENCY_RATES[currency] || CURRENCY_RATES.USD;
     const converted = Math.round(usdAmount * curr.rate);
     if (curr.position === 'prefix') {
       return `${curr.symbol}${converted.toLocaleString()}`;
@@ -724,6 +770,9 @@ Kindly confirm availability and atelier dispatch timeline. Thank you!`;
         getOrderById,
         settings,
         updateSettings,
+        updateNavMenuItems,
+        toggleComingSoon,
+        updateCurrencyRates,
         heroSlides,
         updateHeroSlides,
         reviews,

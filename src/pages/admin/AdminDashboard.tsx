@@ -31,13 +31,36 @@ import {
   List,
   Cloud,
   RefreshCw,
-  ShieldCheck
+  ShieldCheck,
+  Compass,
+  Coins,
+  ArrowUpDown,
+  MoveUp,
+  MoveDown
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import { BrandLogo } from '../../components/BrandLogo';
-import { Product, Category, Order, OrderStatus, Coupon, HeroSlide, StoreSettings } from '../../types';
-import { HERO_IMAGE, DUBAI_IMAGE, KIMONO_IMAGE, ATELIER_IMAGE } from '../../services/seedData';
+import { 
+  Product, 
+  Category, 
+  Order, 
+  OrderStatus, 
+  Coupon, 
+  HeroSlide, 
+  StoreSettings,
+  NavMenuItem,
+  CurrencyConfig,
+  CurrencyCode
+} from '../../types';
+import { 
+  HERO_IMAGE, 
+  DUBAI_IMAGE, 
+  KIMONO_IMAGE, 
+  ATELIER_IMAGE,
+  INITIAL_NAV_MENU_ITEMS,
+  INITIAL_CURRENCY_RATES
+} from '../../services/seedData';
 import { StorageService } from '../../services/storageService';
 import { ImageUploadField } from '../../components/ImageUploadField';
 import { MASTER_ADMIN_UID } from '../../services/firebaseConfig';
@@ -68,14 +91,17 @@ export const AdminDashboard: React.FC = () => {
     navigateTo, 
     showToast,
     syncAllToFirebase,
-    lastFirebaseSync
+    lastFirebaseSync,
+    updateNavMenuItems,
+    toggleComingSoon,
+    updateCurrencyRates
   } = useStore();
 
   const { adminUser, logout } = useAdminAuth();
 
   const [isSyncingToFirebase, setIsSyncingToFirebase] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'slides' | 'orders' | 'categories' | 'coupons' | 'reviews' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'slides' | 'orders' | 'categories' | 'navmenu' | 'currency' | 'coupons' | 'reviews' | 'settings'>('overview');
 
   // Admin tabs scroll ref & arrow state
   const adminTabsRef = useRef<HTMLDivElement>(null);
@@ -144,6 +170,160 @@ export const AdminDashboard: React.FC = () => {
 
   // Order Details Modal
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
+
+  // Navigation Menu Management State
+  const [navItems, setNavItems] = useState<NavMenuItem[]>(() => {
+    return settings.navMenuItems || INITIAL_NAV_MENU_ITEMS;
+  });
+  const [editingNavItem, setEditingNavItem] = useState<NavMenuItem | null>(null);
+  const [showAddNavModal, setShowAddNavModal] = useState(false);
+  const [navItemForm, setNavItemForm] = useState<Omit<NavMenuItem, 'id'>>({
+    label: '',
+    page: 'shop',
+    categoryFilter: 'All',
+    badge: '',
+    isActive: true,
+    order: 1
+  });
+
+  // Currency & Pricing Management State
+  const [currencyRatesForm, setCurrencyRatesForm] = useState<Record<CurrencyCode, CurrencyConfig>>(() => {
+    return settings.currencyRates || INITIAL_CURRENCY_RATES;
+  });
+  const [defaultCurrencySetting, setDefaultCurrencySetting] = useState<CurrencyCode>(settings.currency || 'USD');
+  const [flatShippingFee, setFlatShippingFee] = useState<number>(settings.standardShippingFee ?? 15);
+  const [freeShippingThresholdSetting, setFreeShippingThresholdSetting] = useState<number>(settings.freeShippingThreshold || 250);
+  const [taxPercentSetting, setTaxPercentSetting] = useState<number>(settings.taxPercent ?? 0);
+  const [simulationUsdPrice, setSimulationUsdPrice] = useState<number>(240);
+
+  // Sync state if settings change
+  useEffect(() => {
+    if (settings.navMenuItems) setNavItems(settings.navMenuItems);
+    if (settings.currencyRates) setCurrencyRatesForm(settings.currencyRates);
+    if (settings.currency) setDefaultCurrencySetting(settings.currency);
+    if (settings.standardShippingFee !== undefined) setFlatShippingFee(settings.standardShippingFee);
+    if (settings.freeShippingThreshold !== undefined) setFreeShippingThresholdSetting(settings.freeShippingThreshold);
+    if (settings.taxPercent !== undefined) setTaxPercentSetting(settings.taxPercent);
+  }, [settings]);
+
+  // Navigation Menu Handlers
+  const handleToggleNavItem = (id: string) => {
+    const updated = navItems.map(item => item.id === id ? { ...item, isActive: !item.isActive } : item);
+    setNavItems(updated);
+    updateNavMenuItems(updated);
+  };
+
+  const handleMoveNavItem = (id: string, direction: 'up' | 'down') => {
+    const index = navItems.findIndex(i => i.id === id);
+    if (index === -1) return;
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === navItems.length - 1) return;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    const reordered = [...navItems];
+    const temp = reordered[index];
+    reordered[index] = reordered[targetIndex];
+    reordered[targetIndex] = temp;
+
+    const normalized = reordered.map((item, idx) => ({ ...item, order: idx + 1 }));
+    setNavItems(normalized);
+    updateNavMenuItems(normalized);
+  };
+
+  const handleDeleteNavItem = (id: string) => {
+    if (['nav-home', 'nav-collections'].includes(id)) {
+      showToast('Core system link cannot be deleted. You can deactivate it instead.', 'info');
+      return;
+    }
+    const filtered = navItems.filter(i => i.id !== id).map((item, idx) => ({ ...item, order: idx + 1 }));
+    setNavItems(filtered);
+    updateNavMenuItems(filtered);
+    showToast('Navigation link deleted');
+  };
+
+  const handleOpenAddNavModal = () => {
+    setEditingNavItem(null);
+    setNavItemForm({
+      label: '',
+      page: 'shop',
+      categoryFilter: 'All',
+      badge: '',
+      isActive: true,
+      order: navItems.length + 1
+    });
+    setShowAddNavModal(true);
+  };
+
+  const handleOpenEditNavModal = (item: NavMenuItem) => {
+    setEditingNavItem(item);
+    setNavItemForm({
+      label: item.label,
+      page: item.page,
+      categoryFilter: item.categoryFilter || 'All',
+      badge: item.badge || '',
+      isActive: item.isActive,
+      order: item.order
+    });
+    setShowAddNavModal(true);
+  };
+
+  const handleSaveNavItemModal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!navItemForm.label.trim()) {
+      showToast('Please enter a menu label', 'error');
+      return;
+    }
+
+    if (editingNavItem) {
+      const updated = navItems.map(i => i.id === editingNavItem.id ? { ...editingNavItem, ...navItemForm } : i);
+      setNavItems(updated);
+      updateNavMenuItems(updated);
+      showToast(`Updated menu link "${navItemForm.label}"`);
+    } else {
+      const newItem: NavMenuItem = {
+        id: `nav-custom-${Date.now()}`,
+        ...navItemForm,
+        order: navItems.length + 1
+      };
+      const updated = [...navItems, newItem];
+      setNavItems(updated);
+      updateNavMenuItems(updated);
+      showToast(`Added menu link "${navItemForm.label}"`);
+    }
+    setShowAddNavModal(false);
+    setEditingNavItem(null);
+  };
+
+  const handleResetNavItems = () => {
+    setNavItems(INITIAL_NAV_MENU_ITEMS);
+    updateNavMenuItems(INITIAL_NAV_MENU_ITEMS);
+    showToast('Navigation menu reset to default structure');
+  };
+
+  const handleToggleComingSoonStatus = () => {
+    const newState = !settings.isComingSoonActive;
+    toggleComingSoon(newState);
+  };
+
+  // Currency & Pricing Handlers
+  const handleSaveCurrencyAndPricing = (e: React.FormEvent) => {
+    e.preventDefault();
+    const updatedSettings: StoreSettings = {
+      ...settings,
+      currency: defaultCurrencySetting,
+      currencyRates: currencyRatesForm,
+      standardShippingFee: flatShippingFee,
+      freeShippingThreshold: freeShippingThresholdSetting,
+      taxPercent: taxPercentSetting
+    };
+    updateSettings(updatedSettings);
+    showToast('Currency exchange rates and pricing policies updated and saved');
+  };
+
+  const handleResetCurrencyRates = () => {
+    setCurrencyRatesForm(INITIAL_CURRENCY_RATES);
+    showToast('Exchange rates reset to standard baseline rates');
+  };
 
   // Calculations for Overview Dashboard
   const totalRevenue = orders.reduce((sum, ord) => sum + ord.total, 0);
@@ -433,7 +613,13 @@ export const AdminDashboard: React.FC = () => {
   // Settings Save
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
-    updateSettings(settingsForm);
+    updateSettings({
+      ...settings,
+      ...settingsForm,
+      isComingSoonActive: settingsForm.isComingSoonActive ?? false,
+      currencyRates: settings.currencyRates || currencyRatesForm,
+      navMenuItems: settings.navMenuItems || navItems
+    });
   };
 
   // Filtered Products
@@ -551,9 +737,11 @@ export const AdminDashboard: React.FC = () => {
             {[
               { id: 'overview', label: 'Overview', icon: BarChart3 },
               { id: 'products', label: `Catalog (${products.length})`, icon: Package },
-              { id: 'slides', label: `Hero Banners (${heroSlides.length})`, icon: ImageIcon, highlight: true },
-              { id: 'orders', label: `Orders (${orders.length})`, icon: ShoppingBag },
               { id: 'categories', label: `Collections (${categories.length})`, icon: Sliders },
+              { id: 'orders', label: `Orders (${orders.length})`, icon: ShoppingBag },
+              { id: 'navmenu', label: `Nav Menu (${navItems.length})`, icon: Compass, highlight: true },
+              { id: 'currency', label: 'Pricing & Currency', icon: Coins, highlight: true },
+              { id: 'slides', label: `Hero Banners (${heroSlides.length})`, icon: ImageIcon },
               { id: 'coupons', label: 'Coupons', icon: Tag },
               { id: 'reviews', label: `Reviews (${reviews.length})`, icon: Star },
               { id: 'settings', label: 'Store Settings', icon: Settings },
@@ -1349,12 +1537,521 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
 
+        {/* TAB 5: NAVIGATION MENU MANAGER */}
+        {activeTab === 'navmenu' && (
+          <div className="space-y-6">
+            {/* Header Banner & Quick Actions */}
+            <div className="bg-white border border-neutral-200 rounded-xl p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Compass className="w-5 h-5 text-[#002814]" />
+                  <h3 className="font-serif text-xl font-bold text-neutral-900">
+                    Storefront Navigation & Menu Manager
+                  </h3>
+                </div>
+                <p className="text-xs text-neutral-500 mt-1">
+                  Customize the main header links, active visibility, display order, badges (e.g. "New", "Save 20%"), and seasonal preview switches.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleResetNavItems}
+                  className="px-3.5 py-2 text-xs font-semibold text-neutral-600 bg-neutral-100 hover:bg-neutral-200 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Reset to default luxury boutique menu"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset Default</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleOpenAddNavModal}
+                  className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#F3E5AB] bg-[#002814] hover:bg-[#001A0D] border border-[#D4AF37]/50 rounded-lg flex items-center gap-1.5 shadow transition-colors cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 text-[#D4AF37]" />
+                  <span>Add Nav Link</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Special Coming Soon Season Status Banner */}
+            <div className={`p-5 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm transition-colors ${
+              settings.isComingSoonActive 
+                ? 'bg-amber-50/80 border-amber-300' 
+                : 'bg-emerald-50/70 border-emerald-300'
+            }`}>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full ${
+                    settings.isComingSoonActive 
+                      ? 'bg-amber-200 text-amber-900' 
+                      : 'bg-emerald-200 text-emerald-900'
+                  }`}>
+                    {settings.isComingSoonActive ? 'Preview Mode Active' : 'Deactivated (Store Live)'}
+                  </span>
+                  <h4 className="font-bold text-sm text-neutral-900">
+                    Coming Soon Seasonal Preview Status
+                  </h4>
+                </div>
+                <p className="text-xs text-neutral-600 max-w-2xl leading-relaxed">
+                  {settings.isComingSoonActive
+                    ? 'Coming Soon mode is currently ACTIVE. The header crown badge and upcoming lookbook are visible across the storefront.'
+                    : 'Coming Soon mode is currently DEACTIVATED. Customers can browse all live collections, shopping bag, and checkout without distraction. You can activate this whenever an upcoming seasonal drop is ready.'
+                  }
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleToggleComingSoonStatus}
+                className={`px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2 shrink-0 transition-colors cursor-pointer shadow-sm ${
+                  settings.isComingSoonActive
+                    ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                    : 'bg-[#002814] hover:bg-[#001A0D] text-[#F3E5AB] border border-[#D4AF37]/60'
+                }`}
+              >
+                {settings.isComingSoonActive ? 'Deactivate Coming Soon' : 'Activate Coming Soon'}
+              </button>
+            </div>
+
+            {/* Navigation Links Table */}
+            <div className="bg-white border border-neutral-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="p-4 bg-[#FAF7F0] border-b border-neutral-200 flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-neutral-700">
+                  Navigation Items ({navItems.length})
+                </span>
+                <span className="text-[11px] text-neutral-500 hidden sm:inline">
+                  Use up/down arrows to reorder, or click toggle to show/hide links on the storefront
+                </span>
+              </div>
+
+              <div className="divide-y divide-neutral-100">
+                {navItems.map((item, idx) => (
+                  <div 
+                    key={item.id}
+                    className={`p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-colors ${
+                      item.isActive ? 'bg-white hover:bg-neutral-50/70' : 'bg-neutral-50/90 opacity-75'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {/* Order and reorder buttons */}
+                      <div className="flex flex-col items-center">
+                        <button
+                          type="button"
+                          onClick={() => handleMoveNavItem(item.id, 'up')}
+                          disabled={idx === 0}
+                          className="p-1 text-neutral-400 hover:text-black disabled:opacity-30 cursor-pointer"
+                          title="Move Up"
+                        >
+                          <MoveUp className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="text-[10px] font-mono font-bold text-neutral-500">
+                          {idx + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleMoveNavItem(item.id, 'down')}
+                          disabled={idx === navItems.length - 1}
+                          className="p-1 text-neutral-400 hover:text-black disabled:opacity-30 cursor-pointer"
+                          title="Move Down"
+                        >
+                          <MoveDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Item Details */}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-neutral-900">{item.label}</span>
+                          {item.badge && (
+                            <span className="text-[9px] px-1.5 py-0.2 bg-[#D4AF37] text-neutral-950 font-bold rounded-sm uppercase tracking-wider">
+                              {item.badge}
+                            </span>
+                          )}
+                          {item.id === 'nav-coming-soon' && !settings.isComingSoonActive && (
+                            <span className="text-[9px] px-1.5 py-0.2 bg-rose-100 text-rose-700 font-semibold rounded">
+                              Disabled by Coming Soon switch
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500 mt-1">
+                          <span className="font-mono bg-neutral-100 px-1.5 py-0.5 rounded text-[11px]">
+                            Route: /{item.page}
+                          </span>
+                          {item.categoryFilter && item.categoryFilter !== 'All' && (
+                            <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[11px]">
+                              Filter: {item.categoryFilter}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Action Controls */}
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      {/* Active Visibility Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleNavItem(item.id)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                          item.isActive
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-neutral-200 text-neutral-600 border border-neutral-300 hover:bg-neutral-300'
+                        }`}
+                      >
+                        <span className={`w-2 h-2 rounded-full ${item.isActive ? 'bg-emerald-500' : 'bg-neutral-400'}`} />
+                        <span>{item.isActive ? 'Visible' : 'Hidden'}</span>
+                      </button>
+
+                      {/* Edit Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditNavModal(item)}
+                        className="p-1.5 text-neutral-600 hover:text-black hover:bg-neutral-100 rounded transition-colors cursor-pointer"
+                        title="Edit menu link"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+
+                      {/* Delete Button (Allowed for custom links) */}
+                      {!['nav-home', 'nav-collections'].includes(item.id) && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteNavItem(item.id)}
+                          className="p-1.5 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                          title="Delete menu link"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Real-time Header Mockup Preview */}
+            <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-neutral-700 flex items-center gap-1.5">
+                  <Eye className="w-4 h-4 text-[#002814]" />
+                  <span>Real-time Navigation Bar Preview</span>
+                </span>
+                <span className="text-[11px] text-neutral-400 font-mono">
+                  Active links ({navItems.filter(i => i.isActive && (i.id !== 'nav-coming-soon' || settings.isComingSoonActive)).length})
+                </span>
+              </div>
+
+              <div className="p-3 bg-[#FDFBF7] border border-neutral-200 rounded-lg flex flex-wrap items-center gap-4 text-xs font-semibold">
+                <div className="text-[#002814] font-bold">EH Emblem</div>
+                <div className="h-4 w-[1px] bg-neutral-300" />
+                {navItems
+                  .filter(i => i.isActive && (i.id !== 'nav-coming-soon' || settings.isComingSoonActive))
+                  .map(item => (
+                    <div key={item.id} className="flex items-center gap-1 text-neutral-800 hover:text-[#002814] cursor-pointer">
+                      <span>{item.label}</span>
+                      {item.badge && (
+                        <span className="text-[9px] px-1 py-0.2 bg-[#D4AF37] text-black font-bold rounded-xs">
+                          {item.badge}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6: PRICING & CURRENCY CONFIGURATION */}
+        {activeTab === 'currency' && (
+          <form onSubmit={handleSaveCurrencyAndPricing} className="space-y-6">
+            {/* Header Banner */}
+            <div className="bg-white border border-neutral-200 rounded-xl p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Coins className="w-5 h-5 text-[#D4AF37]" />
+                  <h3 className="font-serif text-xl font-bold text-neutral-900">
+                    Pricing, Currency Exchange Rates & Policies
+                  </h3>
+                </div>
+                <p className="text-xs text-neutral-500 mt-1">
+                  Configure default boutique currency, multi-currency conversion rates (PKR, AED, SAR, GBP, USD), currency symbols, complimentary shipping rules, and tax.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleResetCurrencyRates}
+                  className="px-3.5 py-2 text-xs font-semibold text-neutral-600 bg-neutral-100 hover:bg-neutral-200 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset Default Rates</span>
+                </button>
+
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold uppercase tracking-wider text-[#F3E5AB] bg-[#002814] hover:bg-[#001A0D] border border-[#D4AF37]/50 rounded-lg shadow transition-colors cursor-pointer"
+                >
+                  Save All Rates & Policies
+                </button>
+              </div>
+            </div>
+
+            {/* Currency Rates Matrix */}
+            <div className="bg-white border border-neutral-200 rounded-xl p-6 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3">
+                <h4 className="font-bold text-sm text-neutral-900 uppercase tracking-wider">
+                  Live Currency Exchange Matrix (Base: 1 USD)
+                </h4>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-neutral-600">Default Display Currency:</span>
+                  <select
+                    value={defaultCurrencySetting}
+                    onChange={(e: any) => setDefaultCurrencySetting(e.target.value)}
+                    className="text-xs font-bold p-1.5 bg-neutral-100 border border-neutral-300 rounded cursor-pointer"
+                  >
+                    <option value="USD">USD ($)</option>
+                    <option value="AED">AED (د.إ)</option>
+                    <option value="SAR">SAR (ر.س)</option>
+                    <option value="GBP">GBP (£)</option>
+                    <option value="PKR">PKR (Rs)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {(['USD', 'PKR', 'AED', 'SAR', 'GBP'] as CurrencyCode[]).map((cCode) => {
+                  const cfg = currencyRatesForm[cCode] || INITIAL_CURRENCY_RATES[cCode];
+                  return (
+                    <div key={cCode} className="p-4 rounded-xl border border-neutral-200 bg-[#FDFBF7] space-y-3 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-[#002814]">{cCode}</span>
+                          {cCode === defaultCurrencySetting && (
+                            <span className="text-[9px] px-1.5 py-0.5 bg-[#002814] text-white font-bold rounded">
+                              Default
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs font-mono font-bold text-neutral-600">
+                          {cfg.symbol}
+                        </span>
+                      </div>
+
+                      <div className="space-y-2 text-xs">
+                        <div>
+                          <label className="text-[11px] font-semibold text-neutral-600 block mb-0.5">
+                            Exchange Rate (1 USD = ? {cCode})
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            disabled={cCode === 'USD'}
+                            value={cfg.rate}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setCurrencyRatesForm(prev => ({
+                                ...prev,
+                                [cCode]: { ...cfg, rate: val }
+                              }));
+                            }}
+                            className={`w-full p-2 text-xs border rounded font-mono font-bold ${
+                              cCode === 'USD' ? 'bg-neutral-100 text-neutral-500 cursor-not-allowed' : 'bg-white'
+                            }`}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[11px] font-semibold text-neutral-600 block mb-0.5">
+                              Symbol
+                            </label>
+                            <input
+                              type="text"
+                              value={cfg.symbol}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setCurrencyRatesForm(prev => ({
+                                  ...prev,
+                                  [cCode]: { ...cfg, symbol: val }
+                                }));
+                              }}
+                              className="w-full p-2 text-xs border rounded bg-white font-mono font-semibold"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[11px] font-semibold text-neutral-600 block mb-0.5">
+                              Position
+                            </label>
+                            <select
+                              value={cfg.position}
+                              onChange={(e: any) => {
+                                const pos = e.target.value;
+                                setCurrencyRatesForm(prev => ({
+                                  ...prev,
+                                  [cCode]: { ...cfg, position: pos }
+                                }));
+                              }}
+                              className="w-full p-2 text-xs border rounded bg-white cursor-pointer"
+                            >
+                              <option value="prefix">Prefix (e.g. $100)</option>
+                              <option value="suffix">Suffix (e.g. 100 AED)</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Shipping & Tax Rules */}
+            <div className="bg-white border border-neutral-200 rounded-xl p-6 shadow-sm space-y-4">
+              <h4 className="font-bold text-sm text-neutral-900 uppercase tracking-wider border-b pb-3">
+                Shipping & Tax Policies
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-neutral-700 block mb-1">
+                    Free Complimentary Shipping Threshold ($)
+                  </label>
+                  <input
+                    type="number"
+                    value={freeShippingThresholdSetting}
+                    onChange={(e) => setFreeShippingThresholdSetting(Number(e.target.value))}
+                    className="w-full p-2.5 text-xs border rounded font-mono font-semibold"
+                  />
+                  <span className="text-[10px] text-neutral-500 mt-1 block">
+                    Orders above this amount qualify for complimentary zero-fee delivery.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-neutral-700 block mb-1">
+                    Standard Flat Shipping Fee ($)
+                  </label>
+                  <input
+                    type="number"
+                    value={flatShippingFee}
+                    onChange={(e) => setFlatShippingFee(Number(e.target.value))}
+                    className="w-full p-2.5 text-xs border rounded font-mono font-semibold"
+                  />
+                  <span className="text-[10px] text-neutral-500 mt-1 block">
+                    Standard fee applied when order total is below complimentary threshold.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-neutral-700 block mb-1">
+                    Tax / VAT Rate (%)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={taxPercentSetting}
+                    onChange={(e) => setTaxPercentSetting(Number(e.target.value))}
+                    className="w-full p-2.5 text-xs border rounded font-mono font-semibold"
+                  />
+                  <span className="text-[10px] text-neutral-500 mt-1 block">
+                    Default 0% for tax-inclusive modesty pricing.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Live Price Simulator */}
+            <div className="bg-[#002814] text-white rounded-xl p-6 shadow-lg border border-[#D4AF37]/50 space-y-3">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <span className="text-[#D4AF37] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Live Multi-Currency Price Simulator</span>
+                  </span>
+                  <p className="text-xs text-neutral-300 mt-0.5">
+                    Enter any baseline USD price to inspect how it converts into all regional currencies across customer checkouts.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-neutral-300">Test USD Amount:</span>
+                  <input
+                    type="number"
+                    value={simulationUsdPrice}
+                    onChange={(e) => setSimulationUsdPrice(Number(e.target.value))}
+                    className="w-24 p-1.5 text-xs bg-black/40 border border-white/20 rounded text-[#D4AF37] font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2">
+                {(['USD', 'AED', 'SAR', 'GBP', 'PKR'] as CurrencyCode[]).map(curr => {
+                  const cfg = currencyRatesForm[curr] || INITIAL_CURRENCY_RATES[curr];
+                  const converted = Math.round(simulationUsdPrice * cfg.rate);
+                  const formatted = cfg.position === 'prefix' ? `${cfg.symbol}${converted.toLocaleString()}` : `${converted.toLocaleString()}${cfg.symbol}`;
+                  return (
+                    <div key={curr} className="bg-black/40 border border-[#D4AF37]/30 rounded-lg p-3 text-center">
+                      <span className="text-[10px] uppercase font-bold text-neutral-400 block">{curr}</span>
+                      <span className="text-base font-bold text-white font-mono block mt-1">{formatted}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Bottom Save Action */}
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                className="px-8 py-3 bg-[#002814] hover:bg-[#001A0D] text-[#F3E5AB] text-xs font-bold uppercase tracking-wider rounded-lg shadow-md border border-[#D4AF37]/60 cursor-pointer"
+              >
+                Save Currency & Pricing Configuration
+              </button>
+            </div>
+          </form>
+        )}
+
         {/* TAB 8: STORE SETTINGS */}
         {activeTab === 'settings' && (
           <form onSubmit={handleSaveSettings} className="bg-white border border-neutral-200 rounded-lg p-6 sm:p-8 max-w-2xl shadow-sm space-y-5">
             <h3 className="font-serif text-xl font-bold text-neutral-900 border-b pb-3">
               Store & WhatsApp Concierge Settings
             </h3>
+
+            {/* Coming Soon Seasonal Mode Switch */}
+            <div className={`p-4 rounded-lg border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+              settingsForm.isComingSoonActive ? 'bg-amber-50 border-amber-300' : 'bg-emerald-50 border-emerald-300'
+            }`}>
+              <div>
+                <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded ${
+                  settingsForm.isComingSoonActive ? 'bg-amber-200 text-amber-900' : 'bg-emerald-200 text-emerald-900'
+                }`}>
+                  {settingsForm.isComingSoonActive ? 'Coming Soon Mode: ACTIVE' : 'Coming Soon Mode: DEACTIVATED'}
+                </span>
+                <p className="text-xs text-neutral-600 mt-1">
+                  Deactivated by default so patrons can browse live boutique items. Toggle to Active for seasonal countdown drops.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const val = !settingsForm.isComingSoonActive;
+                  setSettingsForm({ ...settingsForm, isComingSoonActive: val });
+                  toggleComingSoon(val);
+                }}
+                className={`px-3.5 py-2 rounded text-xs font-bold uppercase tracking-wider shrink-0 cursor-pointer transition-colors ${
+                  settingsForm.isComingSoonActive ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-[#002814] hover:bg-[#001A0D] text-[#F3E5AB] border border-[#D4AF37]/50'
+                }`}
+              >
+                {settingsForm.isComingSoonActive ? 'Deactivate Now' : 'Activate Preview'}
+              </button>
+            </div>
 
             {/* Brand Logo Configuration with Direct PC Upload */}
             <div className="bg-[#FAF7F0] p-4 rounded-lg border border-[#D4AF37]/40 mb-2">
@@ -2083,6 +2780,110 @@ export const AdminDashboard: React.FC = () => {
                   className="flex-1 py-2.5 bg-[#002814] text-[#F3E5AB] rounded font-bold uppercase shadow border border-[#D4AF37]/50 cursor-pointer"
                 >
                   {editingCategory ? 'Update Category' : 'Save & Sync to Firebase'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: Add / Edit Navigation Item Modal */}
+      {showAddNavModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-xl border border-[#D4AF37]/50 shadow-2xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-200">
+              <h3 className="font-serif text-lg font-bold text-neutral-900">
+                {editingNavItem ? 'Edit Navigation Link' : 'Add New Navigation Link'}
+              </h3>
+              <button onClick={() => setShowAddNavModal(false)} className="text-neutral-500 hover:text-black cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveNavItemModal} className="mt-4 space-y-4 text-xs">
+              <div>
+                <label className="font-semibold text-neutral-700 block mb-1">Menu Label / Title *</label>
+                <input
+                  type="text"
+                  value={navItemForm.label}
+                  onChange={(e) => setNavItemForm({ ...navItemForm, label: e.target.value })}
+                  placeholder="e.g. Silk Sheilas, Festive Drops"
+                  className="w-full p-2.5 border rounded"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-neutral-700 block mb-1">Target Page / Route</label>
+                <select
+                  value={navItemForm.page}
+                  onChange={(e) => setNavItemForm({ ...navItemForm, page: e.target.value })}
+                  className="w-full p-2.5 border rounded bg-white"
+                >
+                  <option value="home">Home (/home)</option>
+                  <option value="shop">Shop All (/shop)</option>
+                  <option value="coming-soon">Coming Soon (/coming-soon)</option>
+                  <option value="about">Atelier & About (/about)</option>
+                  <option value="blog">Stories & Blog (/blog)</option>
+                  <option value="faqs">FAQs (/faqs)</option>
+                  <option value="contact">Contact & Concierge (/contact)</option>
+                  <option value="track-order">Track Order (/track-order)</option>
+                </select>
+              </div>
+
+              {navItemForm.page === 'shop' && (
+                <div>
+                  <label className="font-semibold text-neutral-700 block mb-1">Category Filter (Optional)</label>
+                  <select
+                    value={navItemForm.categoryFilter || 'All'}
+                    onChange={(e) => setNavItemForm({ ...navItemForm, categoryFilter: e.target.value })}
+                    className="w-full p-2.5 border rounded bg-white"
+                  >
+                    <option value="All">All Categories</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.name}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="font-semibold text-neutral-700 block mb-1">Badge Tag (Optional)</label>
+                <input
+                  type="text"
+                  value={navItemForm.badge || ''}
+                  onChange={(e) => setNavItemForm({ ...navItemForm, badge: e.target.value })}
+                  placeholder="e.g. New, Save 20%, Sale"
+                  className="w-full p-2.5 border rounded"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  type="checkbox"
+                  id="navActiveCheckbox"
+                  checked={navItemForm.isActive}
+                  onChange={(e) => setNavItemForm({ ...navItemForm, isActive: e.target.checked })}
+                  className="w-4 h-4 rounded text-[#002814]"
+                />
+                <label htmlFor="navActiveCheckbox" className="font-semibold text-neutral-800 cursor-pointer">
+                  Visible in storefront navigation bar
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-neutral-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddNavModal(false)}
+                  className="px-4 py-2 border rounded text-neutral-600 hover:bg-neutral-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-[#002814] text-[#F3E5AB] font-bold uppercase tracking-wider rounded border border-[#D4AF37]/50 shadow cursor-pointer"
+                >
+                  Save Link
                 </button>
               </div>
             </form>

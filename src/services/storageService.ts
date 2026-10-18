@@ -14,7 +14,9 @@ import {
   INITIAL_COUPONS, 
   INITIAL_SETTINGS, 
   INITIAL_HERO_SLIDES, 
-  INITIAL_REVIEWS 
+  INITIAL_REVIEWS,
+  INITIAL_CURRENCY_RATES,
+  INITIAL_NAV_MENU_ITEMS
 } from './seedData';
 import { db } from './firebaseConfig';
 import { 
@@ -306,7 +308,16 @@ export const StorageService = {
   getSettings(): StoreSettings {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-      if (stored) return JSON.parse(stored);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return {
+          ...INITIAL_SETTINGS,
+          ...parsed,
+          isComingSoonActive: parsed.isComingSoonActive ?? false,
+          currencyRates: parsed.currencyRates || INITIAL_CURRENCY_RATES,
+          navMenuItems: parsed.navMenuItems || INITIAL_NAV_MENU_ITEMS
+        };
+      }
     } catch (e) {
       console.error('Error reading settings:', e);
     }

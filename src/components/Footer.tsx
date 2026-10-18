@@ -1,5 +1,22 @@
 import React, { useState } from 'react';
-import { ArrowRight, Phone, Mail, MapPin, Sparkles, Check, MessageSquare } from 'lucide-react';
+import { 
+  ArrowRight, 
+  Phone, 
+  Mail, 
+  MapPin, 
+  Sparkles, 
+  Check, 
+  MessageCircle, 
+  Instagram, 
+  Facebook, 
+  Youtube, 
+  Music2, 
+  CreditCard, 
+  ShieldCheck, 
+  Truck, 
+  Banknote,
+  Award
+} from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
 import { useStore } from '../context/StoreContext';
 import { StorageService } from '../services/storageService';
@@ -34,8 +51,7 @@ export const Footer: React.FC = () => {
     { label: 'Pure Korean Nida', cat: 'Nida Abayas' }
   ];
 
-  const customerCareLinks = [
-    { label: 'Coming Soon (New Season Preview)', page: 'coming-soon' },
+  const baseCustomerCareLinks = [
     { label: 'Track Your Order', page: 'track-order' },
     { label: 'Boutique Shopping Bag', page: 'cart' },
     { label: 'Wishlist & Favorites', page: 'wishlist' },
@@ -43,6 +59,11 @@ export const Footer: React.FC = () => {
     { label: 'Atelier Stories & Style Guide', page: 'blog' },
     { label: 'Contact Atelier & Support', page: 'contact' }
   ];
+
+  // Only show Coming Soon if active in settings
+  const customerCareLinks = settings.isComingSoonActive
+    ? [{ label: 'Coming Soon (Seasonal Preview)', page: 'coming-soon' }, ...baseCustomerCareLinks]
+    : baseCustomerCareLinks;
 
   const policyLinks = [
     { label: 'Shipping & Delivery', page: 'shipping' },
@@ -54,10 +75,11 @@ export const Footer: React.FC = () => {
   const cleanWhatsApp = (settings.whatsappNumber || '+92316217618').replace(/[^0-9]/g, '');
 
   return (
-    <footer className="bg-[#0B0B0B] text-[#FDFBF7] pt-16 pb-12 border-t border-[#D4AF37]/30">
+    <footer className="bg-[#0B0B0B] text-[#FDFBF7] pt-14 pb-10 border-t border-[#D4AF37]/30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
         {/* Top Newsletter & Brand Statement Banner */}
-        <div className="pb-14 border-b border-white/10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8">
+        <div className="pb-12 border-b border-white/10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8">
           <div className="max-w-xl">
             <span className="text-[#D4AF37] text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 mb-2">
               <Sparkles className="w-3.5 h-3.5" />
@@ -77,7 +99,7 @@ export const Footer: React.FC = () => {
               value={newsletterEmail}
               onChange={(e) => setNewsletterEmail(e.target.value)}
               placeholder="Enter your email address..."
-              className="px-4 py-3 bg-neutral-900 border border-neutral-700 rounded-sm text-sm text-white placeholder-neutral-500 focus:outline-hidden focus:border-[#D4AF37] w-full sm:w-80"
+              className="px-4 py-3 bg-neutral-900 border border-neutral-700 rounded-sm text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-[#D4AF37] w-full sm:w-80"
               disabled={subscribed}
             />
             <button
@@ -101,7 +123,7 @@ export const Footer: React.FC = () => {
         </div>
 
         {/* 4 Columns Navigation Section */}
-        <div className="py-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10">
+        <div className="py-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10">
           {/* Col 1: Brand Info */}
           <div className="lg:col-span-2">
             <BrandLogo variant="light" size="lg" />
@@ -109,7 +131,7 @@ export const Footer: React.FC = () => {
               Emerald Haya is an elite modest apparel design house dedicated to timeless modest couture, fine hand-embroidered abayas, co-ords, and luxury evening wear.
             </p>
 
-            <div className="mt-6 space-y-2.5 text-xs text-neutral-300">
+            <div className="mt-5 space-y-2.5 text-xs text-neutral-300">
               <div className="flex items-center gap-2.5">
                 <MapPin className="w-4 h-4 text-[#D4AF37] shrink-0" />
                 <span>{settings.address}</span>
@@ -128,45 +150,63 @@ export const Footer: React.FC = () => {
               </div>
             </div>
 
-            {/* Social Links from Settings */}
-            <div className="mt-6 flex flex-wrap items-center gap-2.5">
+            {/* Social Icons using Crisp Lucide Icons (No Broken Images) */}
+            <div className="mt-6 flex flex-wrap items-center gap-2">
               <a
                 href={`https://wa.me/${cleanWhatsApp}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-3 py-1.5 bg-[#002814] text-[#F3E5AB] border border-[#D4AF37]/40 rounded text-xs font-semibold flex items-center gap-1.5 hover:bg-[#00381C] transition-colors"
+                className="w-9 h-9 rounded-full bg-[#002814] text-[#D4AF37] border border-[#D4AF37]/40 flex items-center justify-center hover:bg-[#00381C] hover:scale-105 transition-all shadow-sm"
+                title="WhatsApp Concierge"
               >
-                <MessageSquare className="w-3.5 h-3.5" />
-                WhatsApp
+                <MessageCircle className="w-4 h-4" />
               </a>
+
               {settings.instagramUrl && (
                 <a
                   href={settings.instagramUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-3 py-1.5 bg-neutral-900 text-neutral-300 border border-neutral-800 rounded text-xs hover:border-[#D4AF37] hover:text-[#D4AF37] transition-colors"
+                  className="w-9 h-9 rounded-full bg-neutral-900 text-neutral-300 border border-neutral-800 flex items-center justify-center hover:border-[#D4AF37] hover:text-[#D4AF37] hover:scale-105 transition-all"
+                  title="Instagram"
                 >
-                  Instagram
+                  <Instagram className="w-4 h-4" />
                 </a>
               )}
+
               {settings.facebookUrl && (
                 <a
                   href={settings.facebookUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-3 py-1.5 bg-neutral-900 text-neutral-300 border border-neutral-800 rounded text-xs hover:border-[#D4AF37] hover:text-[#D4AF37] transition-colors"
+                  className="w-9 h-9 rounded-full bg-neutral-900 text-neutral-300 border border-neutral-800 flex items-center justify-center hover:border-[#D4AF37] hover:text-[#D4AF37] hover:scale-105 transition-all"
+                  title="Facebook"
                 >
-                  Facebook
+                  <Facebook className="w-4 h-4" />
                 </a>
               )}
+
               {settings.tiktokUrl && (
                 <a
                   href={settings.tiktokUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-3 py-1.5 bg-neutral-900 text-neutral-300 border border-neutral-800 rounded text-xs hover:border-[#D4AF37] hover:text-[#D4AF37] transition-colors"
+                  className="w-9 h-9 rounded-full bg-neutral-900 text-neutral-300 border border-neutral-800 flex items-center justify-center hover:border-[#D4AF37] hover:text-[#D4AF37] hover:scale-105 transition-all"
+                  title="TikTok"
                 >
-                  TikTok
+                  <Music2 className="w-4 h-4" />
+                </a>
+              )}
+
+              {settings.youtubeUrl && (
+                <a
+                  href={settings.youtubeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-9 h-9 rounded-full bg-neutral-900 text-neutral-300 border border-neutral-800 flex items-center justify-center hover:border-[#D4AF37] hover:text-[#D4AF37] hover:scale-105 transition-all"
+                  title="YouTube"
+                >
+                  <Youtube className="w-4 h-4" />
                 </a>
               )}
             </div>
@@ -177,7 +217,7 @@ export const Footer: React.FC = () => {
             <h4 className="font-serif text-sm font-semibold uppercase tracking-wider text-[#D4AF37] mb-4">
               Collections
             </h4>
-            <ul className="space-y-2.5 text-xs text-neutral-300">
+            <ul className="space-y-2 text-xs text-neutral-300">
               {categoryLinks.map((item) => (
                 <li key={item.label}>
                   <button
@@ -199,7 +239,7 @@ export const Footer: React.FC = () => {
             <h4 className="font-serif text-sm font-semibold uppercase tracking-wider text-[#D4AF37] mb-4">
               Client Care
             </h4>
-            <ul className="space-y-2.5 text-xs text-neutral-300">
+            <ul className="space-y-2 text-xs text-neutral-300">
               {customerCareLinks.map((item) => (
                 <li key={item.label}>
                   <button
@@ -215,20 +255,21 @@ export const Footer: React.FC = () => {
                   href={`https://wa.me/${cleanWhatsApp}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-[#D4AF37] transition-colors text-emerald-400 font-medium inline-flex items-center gap-1"
+                  className="hover:text-[#D4AF37] transition-colors text-emerald-400 font-medium inline-flex items-center gap-1.5"
                 >
-                  WhatsApp: +92 316 217618 →
+                  <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>WhatsApp: {settings.whatsappNumber}</span>
                 </a>
               </li>
             </ul>
           </div>
 
-          {/* Col 4: Policies */}
+          {/* Col 4: Policies & Trust Badge */}
           <div>
             <h4 className="font-serif text-sm font-semibold uppercase tracking-wider text-[#D4AF37] mb-4">
               Boutique Policies
             </h4>
-            <ul className="space-y-2.5 text-xs text-neutral-300">
+            <ul className="space-y-2 text-xs text-neutral-300">
               {policyLinks.map((item) => (
                 <li key={item.label}>
                   <button
@@ -241,20 +282,23 @@ export const Footer: React.FC = () => {
               ))}
             </ul>
 
-            <div className="mt-6 p-3 bg-neutral-900/80 rounded border border-[#002814]/40">
-              <span className="text-[10px] uppercase tracking-wider text-[#D4AF37] block font-semibold">
-                Guaranteed Authenticity
-              </span>
-              <span className="text-[11px] text-neutral-400 block mt-1">
-                Every order comes packaged with an Atelier Certificate of Authenticity & Care Guide.
-              </span>
+            <div className="mt-6 p-3.5 bg-neutral-900/90 rounded-lg border border-[#D4AF37]/30 flex items-start gap-2.5">
+              <Award className="w-5 h-5 text-[#D4AF37] shrink-0 mt-0.5" />
+              <div>
+                <span className="text-[10px] uppercase tracking-wider text-[#D4AF37] block font-bold">
+                  Guaranteed Authenticity
+                </span>
+                <span className="text-[11px] text-neutral-400 block mt-0.5 leading-snug">
+                  Every garment comes with an Atelier Certificate of Authenticity & Fabric Care Guide.
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Bottom Bar: Copyright and Payment Methods */}
-        <div className="pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between text-xs text-neutral-500 gap-4">
-          <div className="flex flex-wrap items-center gap-2 text-center sm:text-left">
+        {/* Bottom Bar: Copyright and Payment / Trust Icons */}
+        <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between text-xs text-neutral-400 gap-4">
+          <div className="flex flex-wrap items-center gap-2 text-center md:text-left">
             <span>© {new Date().getFullYear()} Emerald Haya Modest Apparel. All Rights Reserved.</span>
             <span className="hidden sm:inline">·</span>
             <button
@@ -266,12 +310,24 @@ export const Footer: React.FC = () => {
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-3 text-[11px] text-neutral-400">
-            <span>Direct WhatsApp Ordering</span>
-            <span>·</span>
-            <span>Cash on Delivery</span>
-            <span>·</span>
-            <span>Online Card & Bank Transfer</span>
+          {/* Pure Lucide Icons for Trust & Payment methods (No broken images) */}
+          <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-neutral-300">
+            <div className="flex items-center gap-1.5 bg-neutral-900 px-2.5 py-1 rounded border border-neutral-800">
+              <Phone className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span>WhatsApp Direct</span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-neutral-900 px-2.5 py-1 rounded border border-neutral-800">
+              <Banknote className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span>Cash on Delivery</span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-neutral-900 px-2.5 py-1 rounded border border-neutral-800">
+              <CreditCard className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span>Card / Bank</span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-neutral-900 px-2.5 py-1 rounded border border-neutral-800">
+              <Truck className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span>Express Delivery</span>
+            </div>
           </div>
         </div>
       </div>

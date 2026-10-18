@@ -118,7 +118,7 @@ export const Navbar: React.FC = () => {
   ];
 
   const atelierDropdownItems = [
-    { label: 'Coming Soon (New Season)', page: 'coming-soon', desc: 'Private preview of upcoming releases', isComingSoon: true },
+    ...(settings.isComingSoonActive ? [{ label: 'Coming Soon (New Season)', page: 'coming-soon', desc: 'Private preview of upcoming releases', isComingSoon: true }] : []),
     { label: 'Atelier Stories & Fabric Guide', page: 'blog', desc: 'Behind the craftsmanship of authentic Korean Nida' },
     { label: 'Heritage & Craftsmanship', page: 'about', desc: 'The legacy of modest apparel excellence' },
     { label: 'Frequent Inquiries (FAQ)', page: 'faqs', desc: 'Tailoring, alterations, and shipping details' },
@@ -378,18 +378,20 @@ export const Navbar: React.FC = () => {
                 Shop All
               </button>
 
-              {/* Coming Soon Standalone Highlight */}
-              <button
-                onClick={() => navigateTo('coming-soon')}
-                className={`text-[12px] xl:text-[12.5px] tracking-wider uppercase font-semibold transition-colors flex items-center gap-1.5 py-1 px-3 rounded-full border border-[#D4AF37]/50 hover:bg-[#002814] hover:text-white whitespace-nowrap ${
-                  activePage === 'coming-soon' 
-                    ? 'bg-[#002814] text-white border-[#002814]' 
-                    : 'bg-[#FAF7F0] text-neutral-800'
-                }`}
-              >
-                <Crown className="w-3.5 h-3.5 text-[#D4AF37]" />
-                <span>Coming Soon</span>
-              </button>
+              {/* Coming Soon Standalone Highlight - Inactive by default per user request, activates when enabled */}
+              {settings.isComingSoonActive && (
+                <button
+                  onClick={() => navigateTo('coming-soon')}
+                  className={`text-[12px] xl:text-[12.5px] tracking-wider uppercase font-semibold transition-colors flex items-center gap-1.5 py-1 px-3 rounded-full border border-[#D4AF37]/50 hover:bg-[#002814] hover:text-white whitespace-nowrap ${
+                    activePage === 'coming-soon' 
+                      ? 'bg-[#002814] text-white border-[#002814]' 
+                      : 'bg-[#FAF7F0] text-neutral-800'
+                  }`}
+                >
+                  <Crown className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <span>Coming Soon</span>
+                </button>
+              )}
 
               {/* Atelier & Heritage DROPDOWN */}
               <div 
@@ -690,16 +692,18 @@ export const Navbar: React.FC = () => {
 
               {/* Bottom Concierge Buttons */}
               <div className="pt-2 border-t border-neutral-200 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <button
-                  onClick={() => {
-                    navigateTo('coming-soon');
-                    setMobileMenuOpen(false);
-                  }}
-                  className="flex items-center gap-1.5 text-[#002814] font-bold"
-                >
-                  <Crown className="w-4 h-4 text-[#D4AF37]" />
-                  <span>Coming Soon Drop</span>
-                </button>
+                {settings.isComingSoonActive && (
+                  <button
+                    onClick={() => {
+                      navigateTo('coming-soon');
+                      setMobileMenuOpen(false);
+                    }}
+                    className="flex items-center gap-1.5 text-[#002814] font-bold"
+                  >
+                    <Crown className="w-4 h-4 text-[#D4AF37]" />
+                    <span>Coming Soon Drop</span>
+                  </button>
+                )}
                 <a
                   href={`https://wa.me/${settings.whatsappNumber.replace(/[^0-9]/g, '')}`}
                   target="_blank"
