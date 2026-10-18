@@ -34,6 +34,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
+import { useAdminAuth } from '../../context/AdminAuthContext';
 import { BrandLogo } from '../../components/BrandLogo';
 import { Product, Category, Order, OrderStatus, Coupon, HeroSlide, StoreSettings } from '../../types';
 import { HERO_IMAGE, DUBAI_IMAGE, KIMONO_IMAGE, ATELIER_IMAGE } from '../../services/seedData';
@@ -69,6 +70,8 @@ export const AdminDashboard: React.FC = () => {
     syncAllToFirebase,
     lastFirebaseSync
   } = useStore();
+
+  const { adminUser, logout } = useAdminAuth();
 
   const [isSyncingToFirebase, setIsSyncingToFirebase] = useState(false);
 
@@ -178,7 +181,10 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {}
     setAdminStatus(false);
     showToast('Signed out of Atelier Admin Console');
     navigateTo('home');
@@ -323,15 +329,15 @@ export const AdminDashboard: React.FC = () => {
         name: categoryForm.name.trim(),
         slug,
         description: categoryForm.description.trim(),
-        image: categoryForm.image.trim() || editingCategory.image
+        image: categoryForm.image.trim() || editingCategory.image || DUBAI_IMAGE
       });
-      showToast(`Category "${categoryForm.name}" updated successfully`);
+      showToast(`Category "${categoryForm.name}" updated successfully & synced`);
     } else {
       addCategory({
         name: categoryForm.name.trim(),
         slug,
         description: categoryForm.description.trim(),
-        image: categoryForm.image.trim() || '/logo.svg',
+        image: categoryForm.image.trim() || DUBAI_IMAGE,
         productCount: 0
       });
       showToast(`Category "${categoryForm.name}" created and synced`);
@@ -466,17 +472,22 @@ export const AdminDashboard: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
-          {/* Firebase Real-Time Cloud Sync Indicator & Master UID */}
+          {/* Firebase Real-Time Cloud Sync Indicator & Admin Profile */}
           <div className="flex items-center gap-2">
             <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-[11px] text-emerald-300 font-mono shadow-inner">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Firebase: Connected</span>
+              <span>Firebase Auth: Active</span>
             </div>
 
-            <div className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-900 border border-[#D4AF37]/40 text-[11px] text-[#D4AF37] font-mono shadow-inner" title={`Authorized Master UID: ${MASTER_ADMIN_UID}`}>
-              <ShieldCheck className="w-3.5 h-3.5 text-[#D4AF37]" />
-              <span>UID: {MASTER_ADMIN_UID.substring(0, 10)}...</span>
-            </div>
+            {adminUser && (
+              <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-900 border border-[#D4AF37]/50 text-[11px] text-[#D4AF37] shadow-inner" title={`Admin UID: ${adminUser.uid}`}>
+                <ShieldCheck className="w-3.5 h-3.5 text-[#D4AF37]" />
+                <span className="font-semibold max-w-[130px] truncate">{adminUser.email}</span>
+                <span className="px-1.5 py-0.5 text-[9px] font-mono uppercase bg-[#002814] text-emerald-300 rounded border border-emerald-500/40 font-bold">
+                  {adminUser.role}
+                </span>
+              </div>
+            )}
 
             <button
               onClick={async () => {
@@ -1183,9 +1194,12 @@ export const AdminDashboard: React.FC = () => {
                     <div className="flex gap-4">
                       <div className="w-20 h-24 rounded bg-neutral-100 overflow-hidden border border-neutral-200 shrink-0">
                         <img 
-                          src={cat.image || '/logo.svg'} 
+                          src={cat.image || DUBAI_IMAGE} 
                           alt={cat.name} 
                           referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = DUBAI_IMAGE;
+                          }}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                         />
                       </div>
@@ -1203,14 +1217,15 @@ export const AdminDashboard: React.FC = () => {
 
                     <div className="mt-4 pt-3 border-t border-neutral-100 flex items-center justify-between">
                       <span className="text-[11px] text-neutral-400 font-mono">ID: {cat.id}</span>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => handleOpenEditCategory(cat)}
                           className="px-2.5 py-1 text-xs font-semibold text-[#002814] hover:bg-emerald-50 rounded border border-neutral-200 hover:border-[#002814] transition-colors cursor-pointer flex items-center gap-1"
+                          title="Edit details and upload photo"
                         >
                           <Edit className="w-3 h-3" />
-                          <span>Edit</span>
+                          <span>Edit / Photo</span>
                         </button>
                         <button
                           type="button"
@@ -2041,11 +2056,17 @@ export const AdminDashboard: React.FC = () => {
 
               <div className="border border-neutral-200 rounded-lg p-3 bg-neutral-50">
                 <ImageUploadField
-                  label="Category Cover Image (Direct Upload from PC via ImgBB CDN)"
+                  label="Category Cover Photo (Direct Upload from PC or select preset)"
                   value={categoryForm.image}
                   onChange={(url) => setCategoryForm({ ...categoryForm, image: url })}
                   aspectRatio="landscape"
-                  helperText="Upload any high-res banner photo from your PC. Automatically hosted on ImgBB CDN with zero file size limits."
+                  presets={[
+                    { label: 'Dubai Silk', img: DUBAI_IMAGE },
+                    { label: 'Royal Emerald', img: HERO_IMAGE },
+                    { label: 'Open Kimono', img: KIMONO_IMAGE },
+                    { label: 'Atelier Gold', img: ATELIER_IMAGE }
+                  ]}
+                  helperText="Upload any high-res banner photo from your PC (hosted on ImgBB CDN with API key d497422bf88630579f6e862ddfab3590) or choose a luxury preset."
                 />
               </div>
 

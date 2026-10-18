@@ -3,7 +3,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function for Master Admin UID
+    // Master Admin Helper (UID: pgTnAvap3CX2h9iAhz9b5z41wbd2)
     function isMasterAdmin() {
       return request.auth != null && (
         request.auth.uid == "pgTnAvap3CX2h9iAhz9b5z41wbd2" ||
@@ -12,55 +12,35 @@ service cloud.firestore {
       );
     }
 
-    // Admins Collection
-    match /admins/{adminId} {
-      allow read, write: if true;
-    }
-
-    // Catalog & Content collection docs
-    match /catalog/{docId} {
-      allow read, write: if true;
-    }
-    match /content/{docId} {
-      allow read, write: if true;
-    }
-
-    // Products Collection
+    // Public Collections: Read/Write access for Store, Orders, Products, and Settings
     match /products/{productId} {
       allow read, write: if true;
     }
 
-    // Categories Collection
     match /categories/{categoryId} {
       allow read, write: if true;
     }
 
-    // Orders Collection
     match /orders/{orderId} {
       allow read, write: if true;
     }
 
-    // Reviews Collection
-    match /reviews/{reviewId} {
-      allow read, write: if true;
-    }
-
-    // Coupons Collection
-    match /coupons/{couponId} {
-      allow read, write: if true;
-    }
-
-    // Hero Slides & Banners
     match /heroSlides/{slideId} {
       allow read, write: if true;
     }
 
-    // Store Settings
     match /settings/{settingId} {
       allow read, write: if true;
     }
 
-    // Contact Messages
+    match /coupons/{couponId} {
+      allow read, write: if true;
+    }
+
+    match /reviews/{reviewId} {
+      allow read, write: if true;
+    }
+
     match /contactMessages/{messageId} {
       allow read, write: if true;
     }
@@ -69,7 +49,6 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Newsletter Subscribers
     match /newsletter/{subscriberId} {
       allow read, write: if true;
     }
@@ -78,7 +57,19 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Global Fallback
+    match /catalog/{docId} {
+      allow read, write: if true;
+    }
+
+    match /content/{docId} {
+      allow read, write: if true;
+    }
+
+    match /admins/{adminId} {
+      allow read, write: if true;
+    }
+
+    // Fallback: Allows seamless real-time synchronization
     match /{document=**} {
       allow read, write: if true;
     }

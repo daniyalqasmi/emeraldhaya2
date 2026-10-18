@@ -162,3 +162,23 @@ export interface ContactMessage {
 }
 
 export type CurrencyCode = 'USD' | 'AED' | 'SAR' | 'GBP' | 'PKR';
+
+export interface AdminUser {
+  uid: string;
+  name: string;
+  email: string;
+  role: 'admin';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminAuthContextType {
+  adminUser: AdminUser | null;
+  firebaseUser: any | null;
+  isAdmin: boolean;
+  loading: boolean;
+  error: string | null;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  clearError: () => void;
+}

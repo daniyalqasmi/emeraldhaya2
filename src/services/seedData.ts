@@ -1,9 +1,14 @@
 import { Product, Category, HeroSlide, Coupon, StoreSettings, BlogPost, Review } from '../types';
 
-export const HERO_IMAGE = '/src/assets/images/hero_luxury_abaya_1791077080316.jpg';
-export const DUBAI_IMAGE = '/src/assets/images/category_dubai_silk_1791077094623.jpg';
-export const KIMONO_IMAGE = '/src/assets/images/category_open_kimono_1791077109151.jpg';
-export const ATELIER_IMAGE = '/src/assets/images/brand_craftsmanship_1791077128183.jpg';
+import heroLuxuryImg from '../assets/images/hero_luxury_abaya_1791077080316.jpg';
+import dubaiSilkImg from '../assets/images/category_dubai_silk_1791077094623.jpg';
+import openKimonoImg from '../assets/images/category_open_kimono_1791077109151.jpg';
+import craftsmanshipImg from '../assets/images/brand_craftsmanship_1791077128183.jpg';
+
+export const HERO_IMAGE = heroLuxuryImg;
+export const DUBAI_IMAGE = dubaiSilkImg;
+export const KIMONO_IMAGE = openKimonoImg;
+export const ATELIER_IMAGE = craftsmanshipImg;
 
 export const INITIAL_SETTINGS: StoreSettings = {
   brandName: 'Emerald Haya',

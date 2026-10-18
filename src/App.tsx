@@ -1,5 +1,7 @@
 import React from 'react';
 import { StoreProvider, useStore } from './context/StoreContext';
+import { AdminAuthProvider } from './context/AdminAuthContext';
+import { ProtectedAdminRoute } from './components/admin/ProtectedAdminRoute';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { QuickViewModal } from './components/QuickViewModal';
@@ -25,19 +27,20 @@ import { AccountPage } from './pages/AccountPage';
 import { ComingSoonPage } from './pages/ComingSoonPage';
 
 // Admin Pages
-import { AdminLogin } from './pages/admin/AdminLogin';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 
 const MainRouter: React.FC = () => {
-  const { activePage, isAdmin } = useStore();
+  const { activePage } = useStore();
 
-  // Admin routing check: Admin panel is strictly at /admin (#/admin)
+  // Admin routing check: Admin panel is strictly protected at /admin (#/admin)
   const isAdminRoute = activePage === 'admin';
 
   if (isAdminRoute) {
     return (
       <div className="min-h-screen bg-[#F8F6F0]">
-        {isAdmin ? <AdminDashboard /> : <AdminLogin />}
+        <ProtectedAdminRoute>
+          <AdminDashboard />
+        </ProtectedAdminRoute>
         <ToastContainer />
       </div>
     );
@@ -84,7 +87,9 @@ const MainRouter: React.FC = () => {
 export default function App() {
   return (
     <StoreProvider>
-      <MainRouter />
+      <AdminAuthProvider>
+        <MainRouter />
+      </AdminAuthProvider>
     </StoreProvider>
   );
 }

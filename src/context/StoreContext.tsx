@@ -183,6 +183,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (cloudData.settings) setSettings(cloudData.settings);
       if (cloudData.slides && cloudData.slides.length > 0) setHeroSlides(cloudData.slides);
       if (cloudData.products && cloudData.products.length > 0) setProducts(cloudData.products);
+      if (cloudData.categories && cloudData.categories.length > 0) setCategories(cloudData.categories);
     }).catch(() => {});
   }, []);
 

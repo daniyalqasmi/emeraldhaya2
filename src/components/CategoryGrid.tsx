@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowUpRight } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
+import { DUBAI_IMAGE } from '../services/seedData';
 
 export const CategoryGrid: React.FC = () => {
   const { categories, setSelectedCategoryFilter, navigateTo } = useStore();
@@ -45,10 +46,13 @@ export const CategoryGrid: React.FC = () => {
             >
               {/* Category Image */}
               <img
-                src={cat.image}
+                src={cat.image || DUBAI_IMAGE}
                 alt={cat.name}
                 className="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-110 opacity-85 group-hover:opacity-100"
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = DUBAI_IMAGE;
+                }}
               />
 
               {/* Scrim Overlay */}

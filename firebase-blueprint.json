@@ -1,5 +1,18 @@
-{
   "entities": {
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authenticated administrator record with role-based access control. Strictly never stores passwords.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 150 },
+        "email": { "type": "string", "maxLength": 150 },
+        "role": { "type": "string", "enum": ["admin"] },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "updatedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["uid", "email", "role"]
+    },
     "Product": {
       "title": "Product",
       "description": "Haute couture abaya catalog item",
@@ -137,8 +150,8 @@
       "description": "Registered customer profiles"
     },
     "/admins/{adminId}": {
-      "schema": "Product",
-      "description": "Admin security access records"
+      "schema": "AdminUser",
+      "description": "Admin security access records with role: admin"
     },
     "/products/{productId}": {
       "schema": "Product",

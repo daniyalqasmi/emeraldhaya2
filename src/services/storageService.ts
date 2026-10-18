@@ -128,7 +128,7 @@ export const StorageService = {
       const stored = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length >= INITIAL_CATEGORIES.length) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch (e) {
       console.error('Error reading categories:', e);
@@ -140,11 +140,22 @@ export const StorageService = {
   saveCategories(categories: Category[]): void {
     try {
       localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
-      if (db) {
-        setDoc(doc(db, 'content', 'categories'), {
+      const firestore = db;
+      if (firestore) {
+        setDoc(doc(firestore, 'content', 'categories'), {
           categories,
           updatedAt: new Date().toISOString()
-        }, { merge: true }).catch(() => {});
+        }, { merge: true }).catch((err) => {
+          console.warn('Firestore categories sync notice:', err);
+        });
+
+        // Also save each individual category for direct document querying
+        categories.forEach((cat) => {
+          setDoc(doc(firestore, 'categories', cat.id), {
+            ...cat,
+            updatedAt: new Date().toISOString()
+          }, { merge: true }).catch(() => {});
+        });
       }
     } catch (e) {
       console.error('Error saving categories:', e);
@@ -428,6 +439,20 @@ export const StorageService = {
         });
       }
 
+      if (payload.categories && payload.categories.length > 0) {
+        operations.push(setDoc(doc(firestore, 'content', 'categories'), {
+          categories: payload.categories,
+          updatedAt: new Date().toISOString()
+        }, { merge: true }));
+
+        payload.categories.forEach((cat) => {
+          operations.push(setDoc(doc(firestore, 'categories', cat.id), {
+            ...cat,
+            updatedAt: new Date().toISOString()
+          }, { merge: true }));
+        });
+      }
+
       await Promise.all(operations);
       const timestamp = new Date().toISOString();
       localStorage.setItem(STORAGE_KEYS.LAST_FIREBASE_SYNC, timestamp);
@@ -438,26 +463,29 @@ export const StorageService = {
     }
   },
 
-  // Try fetching any remotely updated Firestore data on initialization
+    // Try fetching any remotely updated Firestore data on initialization
   async initFirestoreSync(): Promise<{
     settings?: StoreSettings;
     slides?: HeroSlide[];
     products?: Product[];
+    categories?: Category[];
   }> {
     const firestore = db;
     if (!firestore) return {};
     try {
-      const [settingsSnap, storeSettingsSnap, slidesSnap, catalogSnap] = await Promise.all([
+      const [settingsSnap, storeSettingsSnap, slidesSnap, catalogSnap, categoriesSnap] = await Promise.all([
         getDoc(doc(firestore, 'settings', 'general')).catch(() => null),
         getDoc(doc(firestore, 'settings', 'store')).catch(() => null),
         getDoc(doc(firestore, 'content', 'heroSlides')).catch(() => null),
-        getDoc(doc(firestore, 'catalog', 'all_products')).catch(() => null)
+        getDoc(doc(firestore, 'catalog', 'all_products')).catch(() => null),
+        getDoc(doc(firestore, 'content', 'categories')).catch(() => null)
       ]);
 
       const result: {
         settings?: StoreSettings;
         slides?: HeroSlide[];
         products?: Product[];
+        categories?: Category[];
       } = {};
 
       const activeSettingsSnap = storeSettingsSnap?.exists() ? storeSettingsSnap : settingsSnap;
@@ -475,6 +503,30 @@ export const StorageService = {
           result.slides = remoteSlides;
           localStorage.setItem(STORAGE_KEYS.HERO_SLIDES, JSON.stringify(remoteSlides));
         }
+      }
+
+      // Check remote categories from content/categories or /categories collection
+      if (categoriesSnap && categoriesSnap.exists()) {
+        const remoteCategories = categoriesSnap.data()?.categories as Category[];
+        if (Array.isArray(remoteCategories) && remoteCategories.length > 0) {
+          result.categories = remoteCategories;
+          localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(remoteCategories));
+        }
+      } else {
+        try {
+          const catColSnap = await getDocs(collection(firestore, 'categories'));
+          if (!catColSnap.empty) {
+            const list: Category[] = [];
+            catColSnap.forEach(d => {
+              const data = d.data() as Category;
+              if (data && data.name) list.push(data);
+            });
+            if (list.length > 0) {
+              result.categories = list;
+              localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(list));
+            }
+          }
+        } catch {}
       }
 
       // Check if individual products collection has entries
