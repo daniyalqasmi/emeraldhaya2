@@ -200,9 +200,9 @@ export const AdminDashboard: React.FC = () => {
 
     const discountVal = Number(productForm.discount) || 0;
     const priceVal = Number(productForm.price);
-    const oldPriceVal = discountVal > 0 ? Math.round(priceVal * (1 + discountVal / 100)) : undefined;
+    const oldPriceVal = discountVal > 0 ? Math.round(priceVal * (1 + discountVal / 100)) : null;
 
-    const images: string[] = [productForm.imageUrl];
+    const images: string[] = [productForm.imageUrl || DUBAI_IMAGE];
     if (productForm.imageUrl2?.trim()) images.push(productForm.imageUrl2.trim());
     if (productForm.imageUrl3?.trim()) images.push(productForm.imageUrl3.trim());
 
@@ -214,17 +214,17 @@ export const AdminDashboard: React.FC = () => {
         name: productForm.name,
         category: productForm.category,
         sku: productForm.sku,
-        description: productForm.description,
+        description: productForm.description || '',
         price: priceVal,
-        discount: discountVal > 0 ? discountVal : undefined,
+        discount: discountVal > 0 ? discountVal : null,
         oldPrice: oldPriceVal,
         stock: Number(productForm.stock),
         material: productForm.material,
         color: productForm.color,
         images,
         gallery: images,
-        isFlashSale: productForm.isFlashSale,
-        isNewArrival: productForm.isNewArrival
+        isFlashSale: Boolean(productForm.isFlashSale),
+        isNewArrival: Boolean(productForm.isNewArrival)
       });
     } else {
       addProduct({
@@ -234,7 +234,7 @@ export const AdminDashboard: React.FC = () => {
         sku: productForm.sku,
         description: productForm.description || `Handcrafted haute couture ${productForm.category} cut from authentic ${productForm.material}.`,
         price: priceVal,
-        discount: discountVal > 0 ? discountVal : undefined,
+        discount: discountVal > 0 ? discountVal : null,
         oldPrice: oldPriceVal,
         stock: Number(productForm.stock),
         images,
@@ -247,8 +247,8 @@ export const AdminDashboard: React.FC = () => {
         reviewsCount: 0,
         rating: 5.0,
         tags: [productForm.category, 'Modest Wear', 'Luxury Abaya'],
-        isFlashSale: productForm.isFlashSale,
-        isNewArrival: productForm.isNewArrival,
+        isFlashSale: Boolean(productForm.isFlashSale),
+        isNewArrival: Boolean(productForm.isNewArrival),
         detailsList: [`Fabric: ${productForm.material}`, 'Emerald Haya Atelier Crafted', 'Complimentary matching Sheila']
       });
     }

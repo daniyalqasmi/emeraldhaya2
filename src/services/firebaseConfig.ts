@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getAnalytics, isSupported, Analytics } from 'firebase/analytics';
 
@@ -28,7 +28,20 @@ try {
 }
 
 export const auth = app ? getAuth(app) : null;
-export const db = app ? getFirestore(app) : null;
+
+// Initialize Firestore with ignoreUndefinedProperties: true to prevent undefined field crashes
+let firestoreInstance = null;
+if (app) {
+  try {
+    firestoreInstance = initializeFirestore(app, {
+      ignoreUndefinedProperties: true
+    });
+  } catch {
+    firestoreInstance = getFirestore(app);
+  }
+}
+export const db = firestoreInstance;
+
 export const storage = app ? getStorage(app) : null;
 
 // Initialize Analytics safely for browser environment

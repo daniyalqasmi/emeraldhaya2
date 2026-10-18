@@ -23,8 +23,7 @@ import {
   setDoc, 
   deleteDoc,
   collection, 
-  getDocs, 
-  writeBatch 
+  getDocs
 } from 'firebase/firestore';
 
 const STORAGE_KEYS = {
@@ -42,6 +41,33 @@ const STORAGE_KEYS = {
   ADMIN_AUTH: 'emerald_haya_admin_session_v1',
   LAST_FIREBASE_SYNC: 'emerald_haya_last_firebase_sync'
 };
+
+/**
+ * Universal Firestore Sanitizer:
+ * Recursively strips all `undefined` values from objects and arrays,
+ * converting undefined fields to null or removing them to prevent
+ * "Function setDoc() called with invalid data. Unsupported field value: undefined" errors.
+ */
+export function cleanFirestoreData<T>(input: T): T {
+  if (input === undefined) {
+    return null as any;
+  }
+  if (input === null || typeof input !== 'object') {
+    return input;
+  }
+  if (Array.isArray(input)) {
+    return input
+      .filter((item) => item !== undefined)
+      .map((item) => cleanFirestoreData(item)) as any;
+  }
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(input as Record<string, any>)) {
+    if (value !== undefined) {
+      result[key] = cleanFirestoreData(value);
+    }
+  }
+  return result as T;
+}
 
 export const StorageService = {
   // Products
@@ -73,47 +99,60 @@ export const StorageService = {
   },
 
   async saveSingleProductToFirestore(product: Product): Promise<void> {
-    if (!db) return;
+    const firestore = db;
+    if (!firestore) return;
     try {
-      await setDoc(doc(db, 'products', product.id), {
+      const cleanData = cleanFirestoreData({
         ...product,
+        discount: product.discount !== undefined ? product.discount : null,
+        oldPrice: product.oldPrice !== undefined ? product.oldPrice : null,
         updatedAt: new Date().toISOString()
-      }, { merge: true });
+      });
+      await setDoc(doc(firestore, 'products', product.id), cleanData, { merge: true });
       localStorage.setItem(STORAGE_KEYS.LAST_FIREBASE_SYNC, new Date().toISOString());
-    } catch (e) {
-      console.warn('Firebase Firestore single product sync notice:', e);
+    } catch (e: any) {
+      console.warn('Firebase Firestore single product sync notice:', e?.message || e);
     }
   },
 
   async deleteProductFromFirestore(id: string): Promise<void> {
-    if (!db) return;
+    const firestore = db;
+    if (!firestore) return;
     try {
-      await deleteDoc(doc(db, 'products', id));
+      await deleteDoc(doc(firestore, 'products', id));
       localStorage.setItem(STORAGE_KEYS.LAST_FIREBASE_SYNC, new Date().toISOString());
-    } catch (e) {
-      console.warn('Firebase Firestore delete product notice:', e);
+    } catch (e: any) {
+      console.warn('Firebase Firestore delete product notice:', e?.message || e);
     }
   },
 
   async syncProductsToFirestore(products: Product[]): Promise<void> {
-    if (!db) return;
+    const firestore = db;
+    if (!firestore) return;
     try {
-      // Save top products and catalog index document (without oversized payload)
-      const sanitized = products.slice(0, 100).map(p => ({
-        ...p,
-        // If image is a local data url, keep it, but ensure doc doesn't explode
-        images: p.images.slice(0, 2)
-      }));
+      // Save top products and catalog index document (without oversized payload or undefined fields)
+      const sanitizedItems = products.slice(0, 100).map((p) =>
+        cleanFirestoreData({
+          ...p,
+          discount: p.discount !== undefined ? p.discount : null,
+          oldPrice: p.oldPrice !== undefined ? p.oldPrice : null,
+          isFlashSale: Boolean(p.isFlashSale),
+          isNewArrival: Boolean(p.isNewArrival),
+          // If image is a local data url, keep it, but ensure doc doesn't explode
+          images: Array.isArray(p.images) ? p.images.slice(0, 3) : []
+        })
+      );
 
-      await setDoc(doc(db, 'catalog', 'all_products'), {
+      const catalogPayload = cleanFirestoreData({
         updatedAt: new Date().toISOString(),
         count: products.length,
-        items: sanitized
-      }, { merge: true });
+        items: sanitizedItems
+      });
 
+      await setDoc(doc(firestore, 'catalog', 'all_products'), catalogPayload, { merge: true });
       localStorage.setItem(STORAGE_KEYS.LAST_FIREBASE_SYNC, new Date().toISOString());
-    } catch (e) {
-      console.warn('Firebase Firestore product sync notice:', e);
+    } catch (e: any) {
+      console.warn('Firebase Firestore product sync notice:', e?.message || e);
     }
   },
 
@@ -142,19 +181,36 @@ export const StorageService = {
       localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
       const firestore = db;
       if (firestore) {
-        setDoc(doc(firestore, 'content', 'categories'), {
-          categories,
-          updatedAt: new Date().toISOString()
-        }, { merge: true }).catch((err) => {
-          console.warn('Firestore categories sync notice:', err);
+        const cleanCategories = categories.map((c) =>
+          cleanFirestoreData({
+            ...c,
+            description: c.description || '',
+            image: c.image || '',
+            productCount: typeof c.productCount === 'number' ? c.productCount : 0
+          })
+        );
+
+        setDoc(
+          doc(firestore, 'content', 'categories'),
+          cleanFirestoreData({
+            categories: cleanCategories,
+            updatedAt: new Date().toISOString()
+          }),
+          { merge: true }
+        ).catch((err) => {
+          console.warn('Firestore categories sync notice:', err?.message || err);
         });
 
         // Also save each individual category for direct document querying
-        categories.forEach((cat) => {
-          setDoc(doc(firestore, 'categories', cat.id), {
-            ...cat,
-            updatedAt: new Date().toISOString()
-          }, { merge: true }).catch(() => {});
+        cleanCategories.forEach((cat) => {
+          setDoc(
+            doc(firestore, 'categories', cat.id),
+            cleanFirestoreData({
+              ...cat,
+              updatedAt: new Date().toISOString()
+            }),
+            { merge: true }
+          ).catch(() => {});
         });
       }
     } catch (e) {
@@ -180,12 +236,15 @@ export const StorageService = {
       localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
       // Asynchronously persist to Firebase Firestore
-      if (db) {
-        setDoc(doc(db, 'orders', order.id), {
+      const firestore = db;
+      if (firestore) {
+        const cleanOrder = cleanFirestoreData({
           ...order,
+          orderNotes: order.orderNotes || '',
           savedAt: new Date().toISOString()
-        }, { merge: true }).catch((err) => {
-          console.warn('Firestore order sync notice:', err);
+        });
+        setDoc(doc(firestore, 'orders', order.id), cleanOrder, { merge: true }).catch((err) => {
+          console.warn('Firestore order sync notice:', err?.message || err);
         });
       }
     } catch (e) {
@@ -195,11 +254,16 @@ export const StorageService = {
 
   updateOrderStatus(orderId: string, status: Order['status']): Order[] {
     const orders = this.getOrders();
-    const updated = orders.map(ord => ord.id === orderId ? { ...ord, status } : ord);
+    const updated = orders.map((ord) => (ord.id === orderId ? { ...ord, status } : ord));
     try {
       localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(updated));
-      if (db) {
-        setDoc(doc(db, 'orders', orderId), { status, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+      const firestore = db;
+      if (firestore) {
+        setDoc(
+          doc(firestore, 'orders', orderId),
+          cleanFirestoreData({ status, updatedAt: new Date().toISOString() }),
+          { merge: true }
+        ).catch(() => {});
       }
     } catch (e) {
       console.error('Error updating order status:', e);
@@ -222,11 +286,16 @@ export const StorageService = {
   saveCoupons(coupons: Coupon[]): void {
     try {
       localStorage.setItem(STORAGE_KEYS.COUPONS, JSON.stringify(coupons));
-      if (db) {
-        setDoc(doc(db, 'content', 'coupons'), {
-          coupons,
-          updatedAt: new Date().toISOString()
-        }, { merge: true }).catch(() => {});
+      const firestore = db;
+      if (firestore) {
+        setDoc(
+          doc(firestore, 'content', 'coupons'),
+          cleanFirestoreData({
+            coupons,
+            updatedAt: new Date().toISOString()
+          }),
+          { merge: true }
+        ).catch(() => {});
       }
     } catch (e) {
       console.error('Error saving coupons:', e);
@@ -248,19 +317,25 @@ export const StorageService = {
   saveSettings(settings: StoreSettings): void {
     try {
       localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
-      // Asynchronously sync to Firebase Firestore across both config documents
-      if (db) {
-        const payload = {
+      const firestore = db;
+      if (firestore) {
+        const payload = cleanFirestoreData({
           ...settings,
+          logoUrl: settings.logoUrl || '',
+          facebookUrl: settings.facebookUrl || '',
+          tiktokUrl: settings.tiktokUrl || '',
+          youtubeUrl: settings.youtubeUrl || '',
+          pinterestUrl: settings.pinterestUrl || '',
+          imgbbApiKey: settings.imgbbApiKey || '',
           updatedAt: new Date().toISOString()
-        };
+        });
         Promise.all([
-          setDoc(doc(db, 'settings', 'general'), payload, { merge: true }),
-          setDoc(doc(db, 'settings', 'store'), payload, { merge: true })
+          setDoc(doc(firestore, 'settings', 'general'), payload, { merge: true }),
+          setDoc(doc(firestore, 'settings', 'store'), payload, { merge: true })
         ]).then(() => {
           localStorage.setItem(STORAGE_KEYS.LAST_FIREBASE_SYNC, new Date().toISOString());
         }).catch((err) => {
-          console.warn('Firestore settings sync notice:', err);
+          console.warn('Firestore settings sync notice:', err?.message || err);
         });
       }
     } catch (e) {
@@ -283,15 +358,27 @@ export const StorageService = {
   saveHeroSlides(slides: HeroSlide[]): void {
     try {
       localStorage.setItem(STORAGE_KEYS.HERO_SLIDES, JSON.stringify(slides));
-      // Asynchronously sync to Firebase Firestore
-      if (db) {
-        setDoc(doc(db, 'content', 'heroSlides'), {
-          slides,
-          updatedAt: new Date().toISOString()
-        }, { merge: true }).then(() => {
+      const firestore = db;
+      if (firestore) {
+        const cleanSlides = slides.map((s) =>
+          cleanFirestoreData({
+            ...s,
+            categoryFilter: s.categoryFilter || '',
+            image: s.image || '',
+            isActive: Boolean(s.isActive)
+          })
+        );
+        setDoc(
+          doc(firestore, 'content', 'heroSlides'),
+          cleanFirestoreData({
+            slides: cleanSlides,
+            updatedAt: new Date().toISOString()
+          }),
+          { merge: true }
+        ).then(() => {
           localStorage.setItem(STORAGE_KEYS.LAST_FIREBASE_SYNC, new Date().toISOString());
         }).catch((err) => {
-          console.warn('Firestore hero slides sync notice:', err);
+          console.warn('Firestore hero slides sync notice:', err?.message || err);
         });
       }
     } catch (e) {
@@ -314,11 +401,24 @@ export const StorageService = {
   saveReviews(reviews: Review[]): void {
     try {
       localStorage.setItem(STORAGE_KEYS.REVIEWS, JSON.stringify(reviews));
-      if (db) {
-        setDoc(doc(db, 'content', 'reviews'), {
-          reviews,
-          updatedAt: new Date().toISOString()
-        }, { merge: true }).catch(() => {});
+      const firestore = db;
+      if (firestore) {
+        const cleanReviews = reviews.map((r) =>
+          cleanFirestoreData({
+            ...r,
+            customerCity: r.customerCity || '',
+            isVerified: Boolean(r.isVerified),
+            isApproved: Boolean(r.isApproved)
+          })
+        );
+        setDoc(
+          doc(firestore, 'content', 'reviews'),
+          cleanFirestoreData({
+            reviews: cleanReviews,
+            updatedAt: new Date().toISOString()
+          }),
+          { merge: true }
+        ).catch(() => {});
       }
     } catch (e) {
       console.error('Error saving reviews:', e);
@@ -347,11 +447,15 @@ export const StorageService = {
     try {
       const msgs = this.getMessages();
       localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify([msg, ...msgs]));
-      if (db) {
-        setDoc(doc(db, 'messages', msg.id), {
+      const firestore = db;
+      if (firestore) {
+        const cleanMsg = cleanFirestoreData({
           ...msg,
+          phone: msg.phone || '',
+          subject: msg.subject || '',
           receivedAt: new Date().toISOString()
-        }, { merge: true }).catch(() => {});
+        });
+        setDoc(doc(firestore, 'messages', msg.id), cleanMsg, { merge: true }).catch(() => {});
       }
     } catch (e) {
       console.error('Error saving message:', e);
@@ -367,12 +471,17 @@ export const StorageService = {
         list.push(email);
         localStorage.setItem(STORAGE_KEYS.NEWSLETTER, JSON.stringify(list));
       }
-      if (db) {
+      const firestore = db;
+      if (firestore) {
         const subscriberId = email.replace(/[^a-zA-Z0-9]/g, '_');
-        setDoc(doc(db, 'newsletter_subscribers', subscriberId), {
-          email,
-          subscribedAt: new Date().toISOString()
-        }, { merge: true }).catch(() => {});
+        setDoc(
+          doc(firestore, 'newsletter_subscribers', subscriberId),
+          cleanFirestoreData({
+            email,
+            subscribedAt: new Date().toISOString()
+          }),
+          { merge: true }
+        ).catch(() => {});
       }
       return true;
     } catch (e) {
@@ -405,51 +514,115 @@ export const StorageService = {
       const operations: Promise<any>[] = [];
 
       if (payload.settings) {
-        operations.push(setDoc(doc(firestore, 'settings', 'general'), {
+        const cleanSet = cleanFirestoreData({
           ...payload.settings,
+          logoUrl: payload.settings.logoUrl || '',
+          facebookUrl: payload.settings.facebookUrl || '',
+          tiktokUrl: payload.settings.tiktokUrl || '',
+          youtubeUrl: payload.settings.youtubeUrl || '',
+          pinterestUrl: payload.settings.pinterestUrl || '',
+          imgbbApiKey: payload.settings.imgbbApiKey || '',
           updatedAt: new Date().toISOString()
-        }, { merge: true }));
-        operations.push(setDoc(doc(firestore, 'settings', 'store'), {
-          ...payload.settings,
-          updatedAt: new Date().toISOString()
-        }, { merge: true }));
+        });
+        operations.push(setDoc(doc(firestore, 'settings', 'general'), cleanSet, { merge: true }));
+        operations.push(setDoc(doc(firestore, 'settings', 'store'), cleanSet, { merge: true }));
       }
 
       if (payload.slides && payload.slides.length > 0) {
-        operations.push(setDoc(doc(firestore, 'content', 'heroSlides'), {
-          slides: payload.slides,
-          updatedAt: new Date().toISOString()
-        }, { merge: true }));
+        const cleanSlides = payload.slides.map((s) =>
+          cleanFirestoreData({
+            ...s,
+            categoryFilter: s.categoryFilter || '',
+            image: s.image || '',
+            isActive: Boolean(s.isActive)
+          })
+        );
+        operations.push(
+          setDoc(
+            doc(firestore, 'content', 'heroSlides'),
+            cleanFirestoreData({
+              slides: cleanSlides,
+              updatedAt: new Date().toISOString()
+            }),
+            { merge: true }
+          )
+        );
       }
 
       if (payload.products && payload.products.length > 0) {
-        // Save catalog index
-        operations.push(setDoc(doc(firestore, 'catalog', 'all_products'), {
-          updatedAt: new Date().toISOString(),
-          count: payload.products.length,
-          items: payload.products.slice(0, 100)
-        }, { merge: true }));
+        // Save catalog index with 100% sanitized items (NO undefined fields)
+        const sanitizedItems = payload.products.slice(0, 100).map((p) =>
+          cleanFirestoreData({
+            ...p,
+            discount: p.discount !== undefined ? p.discount : null,
+            oldPrice: p.oldPrice !== undefined ? p.oldPrice : null,
+            isFlashSale: Boolean(p.isFlashSale),
+            isNewArrival: Boolean(p.isNewArrival),
+            images: Array.isArray(p.images) ? p.images.slice(0, 3) : []
+          })
+        );
+
+        operations.push(
+          setDoc(
+            doc(firestore, 'catalog', 'all_products'),
+            cleanFirestoreData({
+              updatedAt: new Date().toISOString(),
+              count: payload.products.length,
+              items: sanitizedItems
+            }),
+            { merge: true }
+          )
+        );
 
         // Save top 30 custom / modified products to individual docs
         payload.products.slice(0, 30).forEach((p) => {
-          operations.push(setDoc(doc(firestore, 'products', p.id), {
+          const cleanProd = cleanFirestoreData({
             ...p,
+            discount: p.discount !== undefined ? p.discount : null,
+            oldPrice: p.oldPrice !== undefined ? p.oldPrice : null,
+            isFlashSale: Boolean(p.isFlashSale),
+            isNewArrival: Boolean(p.isNewArrival),
             updatedAt: new Date().toISOString()
-          }, { merge: true }));
+          });
+          operations.push(setDoc(doc(firestore, 'products', p.id), cleanProd, { merge: true }));
         });
       }
 
       if (payload.categories && payload.categories.length > 0) {
-        operations.push(setDoc(doc(firestore, 'content', 'categories'), {
-          categories: payload.categories,
-          updatedAt: new Date().toISOString()
-        }, { merge: true }));
+        const cleanCats = payload.categories.map((c) =>
+          cleanFirestoreData({
+            ...c,
+            description: c.description || '',
+            image: c.image || '',
+            productCount: typeof c.productCount === 'number' ? c.productCount : 0
+          })
+        );
+
+        operations.push(
+          setDoc(
+            doc(firestore, 'content', 'categories'),
+            cleanFirestoreData({
+              categories: cleanCats,
+              updatedAt: new Date().toISOString()
+            }),
+            { merge: true }
+          )
+        );
 
         payload.categories.forEach((cat) => {
-          operations.push(setDoc(doc(firestore, 'categories', cat.id), {
-            ...cat,
-            updatedAt: new Date().toISOString()
-          }, { merge: true }));
+          operations.push(
+            setDoc(
+              doc(firestore, 'categories', cat.id),
+              cleanFirestoreData({
+                ...cat,
+                description: cat.description || '',
+                image: cat.image || '',
+                productCount: typeof cat.productCount === 'number' ? cat.productCount : 0,
+                updatedAt: new Date().toISOString()
+              }),
+              { merge: true }
+            )
+          );
         });
       }
 
@@ -463,7 +636,7 @@ export const StorageService = {
     }
   },
 
-    // Try fetching any remotely updated Firestore data on initialization
+  // Try fetching any remotely updated Firestore data on initialization
   async initFirestoreSync(): Promise<{
     settings?: StoreSettings;
     slides?: HeroSlide[];
@@ -517,7 +690,7 @@ export const StorageService = {
           const catColSnap = await getDocs(collection(firestore, 'categories'));
           if (!catColSnap.empty) {
             const list: Category[] = [];
-            catColSnap.forEach(d => {
+            catColSnap.forEach((d) => {
               const data = d.data() as Category;
               if (data && data.name) list.push(data);
             });
@@ -534,7 +707,7 @@ export const StorageService = {
         const productsColSnap = await getDocs(collection(firestore, 'products'));
         if (!productsColSnap.empty) {
           const remoteColProducts: Product[] = [];
-          productsColSnap.forEach(d => {
+          productsColSnap.forEach((d) => {
             const data = d.data() as Product;
             if (data && data.name && data.price) {
               remoteColProducts.push(data);
@@ -544,8 +717,8 @@ export const StorageService = {
           if (remoteColProducts.length > 0) {
             const local = this.getProducts();
             const map = new Map<string, Product>();
-            local.forEach(p => map.set(p.id, p));
-            remoteColProducts.forEach(p => map.set(p.id, p));
+            local.forEach((p) => map.set(p.id, p));
+            remoteColProducts.forEach((p) => map.set(p.id, p));
             const merged = Array.from(map.values());
             result.products = merged;
             localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(merged));

@@ -6,8 +6,8 @@ export interface Product {
   sku: string;
   description: string;
   price: number;
-  discount?: number; // percentage e.g. 15 for 15%
-  oldPrice?: number;
+  discount?: number | null; // percentage e.g. 15 for 15%
+  oldPrice?: number | null;
   stock: number;
   images: string[];
   color: string;
