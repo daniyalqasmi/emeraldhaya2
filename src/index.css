@@ -1,0 +1,130 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-serif: 'Cormorant Garamond', Georgia, serif;
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    /* Primary Deep Emerald as explicitly requested by user */
+    --color-emerald: #002814;
+    --color-emerald-dark: #001A0D;
+    --color-emerald-light: #004522;
+    /* Proper Rich Metallic Gold */
+    --color-gold: #D4AF37;
+    --color-gold-light: #F3E5AB;
+    --color-gold-dark: #AA820A;
+    /* Rich Velvet Black */
+    --color-charcoal: #0B0B0B;
+    --color-black: #000000;
+    --color-cream: #FDFBF7;
+    --color-offwhite: #F8F6F0;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--color-cream);
+    color: var(--color-charcoal);
+    overflow-x: hidden;
+    letter-spacing: normal;
+    word-spacing: normal;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    text-wrap: pretty;
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-luxury, .font-serif {
+    font-family: var(--font-serif);
+    letter-spacing: -0.01em;
+    word-spacing: normal;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+
+  /* Responsive text safeguards: prevents words from stretching unnaturally or breaking mid-word */
+  h1, h2, h3, h4, h5, h6, p, span, div, a, button {
+    word-break: normal;
+    overflow-wrap: break-word;
+    hyphens: manual;
+  }
+
+  /* Prevent extreme tracking / letter-spacing from spreading words on any screen, especially mobile & tablets */
+  @media (max-width: 768px) {
+    [class*="tracking-"] {
+      letter-spacing: 0.03em !important;
+    }
+  }
+
+  @media (min-width: 769px) {
+    [class*="tracking-[0.25em]"], 
+    [class*="tracking-[0.3em]"], 
+    [class*="tracking-[0.2em]"], 
+    [class*="tracking-[0.18em]"], 
+    [class*="tracking-[0.16em]"] {
+      letter-spacing: 0.05em !important;
+    }
+  }
+}
+
+/* Custom luxury scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F8F6F0;
+}
+::-webkit-scrollbar-thumb {
+  background: #00281488;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #002814;
+}
+
+/* Metallic Gold text gradient utility */
+.gold-gradient-text {
+  background: linear-gradient(135deg, #FCEBA6 0%, #D4AF37 50%, #AA820A 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.emerald-gradient-bg {
+  background: linear-gradient(135deg, #001A0D 0%, #002814 60%, #00381C 100%);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.35s ease-out forwards;
+}
+
+.animate-float-slow {
+  animation: floatSlow 6s ease-in-out infinite;
+}
