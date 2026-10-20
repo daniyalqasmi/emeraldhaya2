@@ -63,7 +63,15 @@ export interface OrderItem {
   image: string;
 }
 
-export type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+export type OrderStatus = 
+  | 'pending' 
+  | 'confirmed' 
+  | 'processing' 
+  | 'packed' 
+  | 'shipped' 
+  | 'out_for_delivery' 
+  | 'delivered' 
+  | 'cancelled';
 
 export interface Order {
   id: string;
@@ -91,8 +99,14 @@ export interface Order {
 
 export interface Coupon {
   code: string;
+  discountType?: 'percentage' | 'fixed';
   discountPercent: number;
+  discountAmount?: number;
   minSpend: number;
+  maxDiscount?: number;
+  usageLimit?: number;
+  usedCount?: number;
+  expiryDate?: string;
   isActive: boolean;
   description: string;
   createdAt?: string;
