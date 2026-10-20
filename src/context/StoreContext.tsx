@@ -15,6 +15,8 @@ import {
 } from '../types';
 import { StorageService } from '../services/storageService';
 import { INITIAL_CURRENCY_RATES, INITIAL_NAV_MENU_ITEMS } from '../services/seedData';
+import { db } from '../services/firebaseConfig';
+import { collection, getDocs } from 'firebase/firestore';
 
 interface Toast {
   id: string;
@@ -62,6 +64,8 @@ interface StoreContextType {
   // Coupon
   coupons: Coupon[];
   addCoupon: (coupon: Coupon) => void;
+  deleteCoupon: (code: string) => void;
+  toggleCouponActive: (code: string, isActive: boolean) => void;
   appliedCoupon: Coupon | null;
   applyCoupon: (code: string) => { success: boolean; message: string };
   removeCoupon: () => void;
@@ -79,7 +83,9 @@ interface StoreContextType {
     orderNotes?: string;
   }) => { order: Order; whatsappUrl: string };
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
+  updateOrderCourier: (orderId: string, courierName: string, trackingNumber: string, estimatedDelivery?: string) => void;
   getOrderById: (orderIdOrNumber: string) => Order | undefined;
+  searchOrderAsync: (query: string) => Promise<Order | undefined>;
 
   // Settings & Configuration
   settings: StoreSettings;
@@ -174,7 +180,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
-  const [currency, setCurrency] = useState<CurrencyCode>('USD');
+  const [currency, setCurrency] = useState<CurrencyCode>('PKR');
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [isAdmin, setIsAdmin] = useState<boolean>(StorageService.isAdminLoggedIn());
@@ -194,7 +200,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Background Firestore cloud check
     StorageService.initFirestoreSync().then((cloudData) => {
-      if (cloudData.settings) setSettings(cloudData.settings);
+      if (cloudData.settings) {
+        setSettings({
+          ...cloudData.settings,
+          currency: 'PKR'
+        });
+      }
       if (cloudData.slides && cloudData.slides.length > 0) setHeroSlides(cloudData.slides);
       if (cloudData.products && cloudData.products.length > 0) setProducts(cloudData.products);
       if (cloudData.categories && cloudData.categories.length > 0) setCategories(cloudData.categories);
@@ -463,7 +474,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     : 0;
 
   const cartShipping =
-    cartSubtotal === 0 || cartSubtotal >= settings.freeShippingThreshold ? 0 : 25;
+    cartSubtotal === 0 || cartSubtotal >= (settings.freeShippingThreshold || 5000)
+      ? 0
+      : (settings.standardShippingFee !== undefined ? settings.standardShippingFee : 250);
 
   const cartGrandTotal = Math.max(0, cartSubtotal - cartDiscount + cartShipping);
 
@@ -487,10 +500,33 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Coupon System
   const addCoupon = (newCoupon: Coupon) => {
-    const updated = [newCoupon, ...coupons];
+    const cleanCoupon: Coupon = {
+      ...newCoupon,
+      code: newCoupon.code.trim().toUpperCase(),
+      createdAt: new Date().toISOString()
+    };
+    const updated = [cleanCoupon, ...coupons.filter(c => c.code.toUpperCase() !== cleanCoupon.code)];
     setCoupons(updated);
     StorageService.saveCoupons(updated);
-    showToast(`Promotion code "${newCoupon.code}" created`);
+    showToast(`Promotion code "${cleanCoupon.code}" created successfully`);
+  };
+
+  const deleteCoupon = (code: string) => {
+    const updated = StorageService.deleteCoupon(code);
+    setCoupons(updated);
+    if (appliedCoupon && appliedCoupon.code.toUpperCase() === code.toUpperCase()) {
+      setAppliedCoupon(null);
+    }
+    showToast(`Promotion code "${code}" deleted`, 'info');
+  };
+
+  const toggleCouponActive = (code: string, isActive: boolean) => {
+    const updated = StorageService.toggleCouponActive(code, isActive);
+    setCoupons(updated);
+    if (!isActive && appliedCoupon && appliedCoupon.code.toUpperCase() === code.toUpperCase()) {
+      setAppliedCoupon(null);
+    }
+    showToast(`Promo code "${code}" is now ${isActive ? 'ACTIVE' : 'DEACTIVATED'}`);
   };
 
   const applyCoupon = (code: string) => {
@@ -498,7 +534,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const found = coupons.find((c) => c.code.toUpperCase() === cleanCode && c.isActive);
 
     if (!found) {
-      return { success: false, message: 'Invalid or expired promotional code' };
+      return { success: false, message: 'Invalid or inactive promotional code' };
     }
 
     if (cartSubtotal < found.minSpend) {
@@ -620,11 +656,98 @@ Kindly confirm availability and atelier dispatch timeline. Thank you!`;
     showToast(`Order status updated to "${status.toUpperCase()}"`);
   };
 
-  const getOrderById = (orderIdOrNumber: string) => {
-    const clean = orderIdOrNumber.trim().toUpperCase().replace('#', '');
-    return orders.find(
-      (o) => o.id === orderIdOrNumber || o.orderNumber.toUpperCase().replace('#', '') === clean || o.phone.includes(clean)
-    );
+  const updateOrderCourier = (
+    orderId: string, 
+    courierName: string, 
+    trackingNumber: string, 
+    estimatedDelivery?: string
+  ) => {
+    const updated = StorageService.updateOrderCourier(orderId, courierName, trackingNumber, estimatedDelivery);
+    setOrders(updated);
+    showToast(`Courier tracking updated: ${courierName} (${trackingNumber})`);
+  };
+
+  const getOrderById = (query: string): Order | undefined => {
+    if (!query || typeof query !== 'string') return undefined;
+    const trimmed = query.trim();
+    if (!trimmed) return undefined;
+
+    const cleanUpper = trimmed.toUpperCase().replace('#', '').replace('EH-', '').replace('EH', '').trim();
+    const cleanDigits = trimmed.replace(/[^0-9]/g, '');
+
+    return orders.find((o) => {
+      // 1. Direct ID match
+      if (o.id.toLowerCase() === trimmed.toLowerCase()) return true;
+
+      // 2. Exact Order number without #
+      const ordUpper = o.orderNumber.toUpperCase().replace('#', '').trim();
+      if (ordUpper === trimmed.toUpperCase().replace('#', '').trim()) return true;
+
+      // 3. Substring match for order number (e.g. searching '84920' finds 'EH-84920')
+      if (cleanUpper && ordUpper.includes(cleanUpper)) return true;
+
+      // 4. Digits match on order number
+      const ordDigits = o.orderNumber.replace(/[^0-9]/g, '');
+      if (cleanDigits && cleanDigits.length >= 4 && ordDigits === cleanDigits) return true;
+
+      // 5. Courier tracking number match
+      if (o.trackingNumber && o.trackingNumber.toUpperCase().replace(/[^A-Z0-9]/g, '').includes(cleanUpper)) return true;
+
+      // 6. Phone number match (comparing normalized digits)
+      const phoneDigits = o.phone.replace(/[^0-9]/g, '');
+      if (cleanDigits && cleanDigits.length >= 7) {
+        if (phoneDigits.endsWith(cleanDigits) || cleanDigits.endsWith(phoneDigits)) return true;
+        if (phoneDigits.includes(cleanDigits)) return true;
+      }
+
+      // 7. Email match
+      if (trimmed.includes('@') && o.email.toLowerCase().trim() === trimmed.toLowerCase()) return true;
+
+      return false;
+    });
+  };
+
+  const searchOrderAsync = async (query: string): Promise<Order | undefined> => {
+    const local = getOrderById(query);
+    if (local) return local;
+
+    // Asynchronously search Firestore if not found locally
+    try {
+      const firestore = db;
+      if (!firestore) return undefined;
+      const cleanUpper = query.trim().toUpperCase().replace('#', '').trim();
+      const cleanDigits = query.replace(/[^0-9]/g, '');
+
+      const snap = await getDocs(collection(firestore, 'orders'));
+      if (!snap.empty) {
+        for (const docSnap of snap.docs) {
+          const ord = docSnap.data() as Order;
+          if (!ord) continue;
+          const ordUpper = (ord.orderNumber || '').toUpperCase().replace('#', '').trim();
+          const ordDigits = (ord.orderNumber || '').replace(/[^0-9]/g, '');
+          const phoneDigits = (ord.phone || '').replace(/[^0-9]/g, '');
+
+          const isMatch =
+            ord.id === query.trim() ||
+            ordUpper === cleanUpper ||
+            (cleanUpper && ordUpper.includes(cleanUpper)) ||
+            (cleanDigits && cleanDigits.length >= 4 && ordDigits === cleanDigits) ||
+            (cleanDigits && cleanDigits.length >= 7 && (phoneDigits.endsWith(cleanDigits) || cleanDigits.endsWith(phoneDigits))) ||
+            (query.includes('@') && (ord.email || '').toLowerCase() === query.trim().toLowerCase());
+
+          if (isMatch) {
+            setOrders((prev) => {
+              if (prev.some((o) => o.id === ord.id)) return prev;
+              return [ord, ...prev];
+            });
+            return ord;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Firestore async order lookup notice:', e);
+    }
+    return undefined;
   };
 
   // Nav Menu & Coming Soon & Currency Helpers
@@ -660,8 +783,12 @@ Kindly confirm availability and atelier dispatch timeline. Thank you!`;
 
   // Settings
   const updateSettings = (newSettings: StoreSettings) => {
-    StorageService.saveSettings(newSettings);
-    setSettings(newSettings);
+    const safeSettings = {
+      ...newSettings,
+      currency: 'PKR' as CurrencyCode
+    };
+    StorageService.saveSettings(safeSettings);
+    setSettings(safeSettings);
     showToast('Store settings and WhatsApp configuration updated');
   };
 
@@ -692,15 +819,10 @@ Kindly confirm availability and atelier dispatch timeline. Thank you!`;
     showToast(`Review ${isApproved ? 'Approved' : 'Hidden'}`);
   };
 
-  // Currency Converter & Formatter (Dynamic rates from StoreSettings)
-  const formatPrice = (usdAmount: number): string => {
-    const customRate = settings.currencyRates?.[currency];
-    const curr = customRate || CURRENCY_RATES[currency] || CURRENCY_RATES.USD;
-    const converted = Math.round(usdAmount * curr.rate);
-    if (curr.position === 'prefix') {
-      return `${curr.symbol}${converted.toLocaleString()}`;
-    }
-    return `${converted.toLocaleString()}${curr.symbol}`;
+  // Currency Formatter (Strictly Pakistani Rupee - PKR ONLY: Rs. X,XXX)
+  const formatPrice = (amount: number): string => {
+    const num = Math.round(Number(amount) || 0);
+    return `Rs. ${num.toLocaleString()}`;
   };
 
   // Admin Session
@@ -761,13 +883,17 @@ Kindly confirm availability and atelier dispatch timeline. Thank you!`;
         moveToCartFromWishlist,
         coupons,
         addCoupon,
+        deleteCoupon,
+        toggleCouponActive,
         appliedCoupon,
         applyCoupon,
         removeCoupon,
         orders,
         createWhatsAppOrder,
         updateOrderStatus,
+        updateOrderCourier,
         getOrderById,
+        searchOrderAsync,
         settings,
         updateSettings,
         updateNavMenuItems,

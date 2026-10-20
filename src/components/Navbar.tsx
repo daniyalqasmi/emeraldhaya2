@@ -31,7 +31,8 @@ export const Navbar: React.FC = () => {
     settings,
     products,
     selectedCategoryFilter,
-    setSelectedCategoryFilter
+    setSelectedCategoryFilter,
+    formatPrice
   } = useStore();
 
   const [isScrolled, setIsScrolled] = useState(false);
@@ -97,8 +98,6 @@ export const Navbar: React.FC = () => {
     navigateTo('product', productId);
   };
 
-  const currencies: CurrencyCode[] = ['USD', 'AED', 'SAR', 'GBP', 'PKR'];
-
   const collectionsDropdownItems = [
     { label: 'Signature Abayas & Kimonos', category: 'Abayas & Kimonos', desc: 'Bespoke cuts & gold embroidered royal hems' },
     { label: 'Modest Co-Ords & Sets', category: 'Modest Co-Ords & Sets', desc: 'Flowing two-piece coordinates & chic ensembles' },
@@ -149,34 +148,9 @@ export const Navbar: React.FC = () => {
               <span>WhatsApp: +92 316 217618</span>
             </a>
 
-            {/* Currency Selector */}
-            <div className="relative">
-              <button 
-                onClick={() => setCurrencyDropdownOpen(!currencyDropdownOpen)}
-                className="flex items-center gap-1 hover:text-[#D4AF37] transition-colors font-medium bg-black/20 px-2 py-0.5 rounded border border-white/10"
-              >
-                <span>{currency}</span>
-                <ChevronDown className="w-2.5 h-2.5 text-[#D4AF37]" />
-              </button>
-
-              {currencyDropdownOpen && (
-                <div className="absolute right-0 mt-1 w-28 bg-[#111111] border border-[#D4AF37]/40 shadow-2xl rounded py-1 z-50">
-                  {currencies.map((curr) => (
-                    <button
-                      key={curr}
-                      onClick={() => {
-                        setCurrency(curr);
-                        setCurrencyDropdownOpen(false);
-                      }}
-                      className={`w-full text-left px-3 py-1.5 text-xs hover:bg-[#002814] transition-colors ${
-                        currency === curr ? 'text-[#D4AF37] font-bold' : 'text-[#F8F6F0]'
-                      }`}
-                    >
-                      {curr}
-                    </button>
-                  ))}
-                </div>
-              )}
+            {/* Permanent Pakistani Currency Badge */}
+            <div className="flex items-center gap-1 text-[#D4AF37] font-bold bg-black/30 px-2.5 py-0.5 rounded border border-[#D4AF37]/30">
+              <span>🇵🇰 PKR (Rs.)</span>
             </div>
 
             {/* Track Order Direct */}
@@ -555,7 +529,7 @@ export const Navbar: React.FC = () => {
                       <div className="flex-1 min-w-0">
                         <div className="text-xs text-[#002814] uppercase tracking-wider font-semibold">{item.category}</div>
                         <div className="text-sm font-medium text-neutral-900 truncate">{item.name}</div>
-                        <div className="text-xs text-neutral-500 font-mono">${item.price} USD</div>
+                        <div className="text-xs text-[#002814] font-bold font-mono">{formatPrice(item.price)}</div>
                       </div>
                     </div>
                   ))}

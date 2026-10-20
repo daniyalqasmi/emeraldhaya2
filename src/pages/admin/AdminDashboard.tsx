@@ -36,7 +36,8 @@ import {
   Coins,
   ArrowUpDown,
   MoveUp,
-  MoveDown
+  MoveDown,
+  Truck
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { useAdminAuth } from '../../context/AdminAuthContext';
@@ -80,6 +81,9 @@ export const AdminDashboard: React.FC = () => {
     resetProductsToDefault,
     coupons,
     addCoupon,
+    deleteCoupon,
+    toggleCouponActive,
+    updateOrderCourier,
     settings, 
     updateSettings, 
     heroSlides, 
@@ -124,7 +128,7 @@ export const AdminDashboard: React.FC = () => {
     category: 'Abayas & Kimonos',
     sku: `EH-${Math.floor(100 + Math.random() * 900)}`,
     description: '',
-    price: 240,
+    price: 6500,
     discount: 0,
     stock: 20,
     material: 'Pure Korean Nida',
@@ -163,13 +167,24 @@ export const AdminDashboard: React.FC = () => {
   // Settings Form State
   const [settingsForm, setSettingsForm] = useState<StoreSettings>(settings);
 
-  // New Coupon Form State
+  // New Coupon Form State (in PKR)
   const [couponCode, setCouponCode] = useState('');
   const [couponPercent, setCouponPercent] = useState(15);
-  const [couponMinSpend, setCouponMinSpend] = useState(100);
+  const [couponMinSpend, setCouponMinSpend] = useState(2500);
 
-  // Order Details Modal
+  // Order Details Modal & Courier Tracking State
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
+  const [orderCourierName, setOrderCourierName] = useState('Trax Logistics');
+  const [orderTrackingNum, setOrderTrackingNum] = useState('');
+  const [orderEstDelivery, setOrderEstDelivery] = useState('');
+
+  useEffect(() => {
+    if (viewingOrder) {
+      setOrderCourierName(viewingOrder.courierName || 'Trax Logistics');
+      setOrderTrackingNum(viewingOrder.trackingNumber || `TRK-${viewingOrder.orderNumber.replace(/[^0-9]/g, '')}`);
+      setOrderEstDelivery(viewingOrder.estimatedDelivery || 'In 2-3 Business Days');
+    }
+  }, [viewingOrder]);
 
   // Navigation Menu Management State
   const [navItems, setNavItems] = useState<NavMenuItem[]>(() => {
@@ -190,11 +205,11 @@ export const AdminDashboard: React.FC = () => {
   const [currencyRatesForm, setCurrencyRatesForm] = useState<Record<CurrencyCode, CurrencyConfig>>(() => {
     return settings.currencyRates || INITIAL_CURRENCY_RATES;
   });
-  const [defaultCurrencySetting, setDefaultCurrencySetting] = useState<CurrencyCode>(settings.currency || 'USD');
-  const [flatShippingFee, setFlatShippingFee] = useState<number>(settings.standardShippingFee ?? 15);
-  const [freeShippingThresholdSetting, setFreeShippingThresholdSetting] = useState<number>(settings.freeShippingThreshold || 250);
+  const [defaultCurrencySetting, setDefaultCurrencySetting] = useState<CurrencyCode>('PKR');
+  const [flatShippingFee, setFlatShippingFee] = useState<number>(settings.standardShippingFee ?? 250);
+  const [freeShippingThresholdSetting, setFreeShippingThresholdSetting] = useState<number>(settings.freeShippingThreshold || 5000);
   const [taxPercentSetting, setTaxPercentSetting] = useState<number>(settings.taxPercent ?? 0);
-  const [simulationUsdPrice, setSimulationUsdPrice] = useState<number>(240);
+  const [simulationUsdPrice, setSimulationUsdPrice] = useState<number>(6500);
 
   // Sync state if settings change
   useEffect(() => {
@@ -439,7 +454,7 @@ export const AdminDashboard: React.FC = () => {
       category: 'Abayas & Kimonos',
       sku: `EH-${Math.floor(100 + Math.random() * 900)}`,
       description: '',
-      price: 240,
+      price: 5500,
       discount: 0,
       stock: 20,
       material: 'Pure Korean Nida',
@@ -603,7 +618,7 @@ export const AdminDashboard: React.FC = () => {
       discountPercent: Number(couponPercent),
       minSpend: Number(couponMinSpend),
       isActive: true,
-      description: `${couponPercent}% off orders above $${couponMinSpend}`
+      description: `${couponPercent}% off orders above Rs. ${couponMinSpend}`
     };
 
     addCoupon(newCoupon);
@@ -740,7 +755,7 @@ export const AdminDashboard: React.FC = () => {
               { id: 'categories', label: `Collections (${categories.length})`, icon: Sliders },
               { id: 'orders', label: `Orders (${orders.length})`, icon: ShoppingBag },
               { id: 'navmenu', label: `Nav Menu (${navItems.length})`, icon: Compass, highlight: true },
-              { id: 'currency', label: 'Pricing & Currency', icon: Coins, highlight: true },
+              { id: 'currency', label: 'PKR Pricing & Shipping', icon: Coins, highlight: true },
               { id: 'slides', label: `Hero Banners (${heroSlides.length})`, icon: ImageIcon },
               { id: 'coupons', label: 'Coupons', icon: Tag },
               { id: 'reviews', label: `Reviews (${reviews.length})`, icon: Star },
@@ -1438,12 +1453,12 @@ export const AdminDashboard: React.FC = () => {
             <form onSubmit={handleCreateCoupon} className="bg-white border border-neutral-200 rounded-lg p-6 shadow-sm space-y-4">
               <h3 className="font-serif text-lg font-bold text-neutral-900 border-b pb-2">Create Promo Code</h3>
               <div>
-                <label className="text-xs font-semibold text-neutral-700 block mb-1">Coupon Code (e.g. DUBAI20)</label>
+                <label className="text-xs font-semibold text-neutral-700 block mb-1">Coupon Code (e.g. EMERALD20)</label>
                 <input
                   type="text"
                   value={couponCode}
                   onChange={(e) => setCouponCode(e.target.value)}
-                  placeholder="EMERALD30"
+                  placeholder="EMERALD20"
                   className="w-full text-xs p-2.5 border rounded uppercase font-mono font-bold"
                   required
                 />
@@ -1456,47 +1471,89 @@ export const AdminDashboard: React.FC = () => {
                   max="90"
                   value={couponPercent}
                   onChange={(e) => setCouponPercent(Number(e.target.value))}
-                  className="w-full text-xs p-2.5 border rounded font-mono"
+                  className="w-full text-xs p-2.5 border rounded font-mono font-bold"
                   required
                 />
               </div>
               <div>
-                <label className="text-xs font-semibold text-neutral-700 block mb-1">Minimum Spend ($)</label>
+                <label className="text-xs font-semibold text-neutral-700 block mb-1">Minimum Spend (PKR Rs.)</label>
                 <input
                   type="number"
                   min="0"
+                  step="100"
                   value={couponMinSpend}
                   onChange={(e) => setCouponMinSpend(Number(e.target.value))}
-                  className="w-full text-xs p-2.5 border rounded font-mono"
+                  placeholder="2500"
+                  className="w-full text-xs p-2.5 border rounded font-mono font-bold"
                   required
                 />
+                <span className="text-[10px] text-neutral-500 mt-1 block">
+                  e.g. 3500 for orders above Rs. 3,500.
+                </span>
               </div>
               <button
                 type="submit"
-                className="w-full py-2.5 bg-[#002814] text-white text-xs font-bold uppercase tracking-wider rounded"
+                className="w-full py-2.5 bg-[#002814] hover:bg-[#001A0D] text-white text-xs font-bold uppercase tracking-wider rounded shadow cursor-pointer transition-colors"
               >
                 Create Promo Code
               </button>
             </form>
 
             <div className="lg:col-span-2 space-y-3">
-              <h3 className="font-serif text-lg font-bold text-neutral-900">Active Boutique Coupons</h3>
-              {coupons.map((c: Coupon) => (
-                <div key={c.code} className="bg-white border border-neutral-200 rounded-lg p-4 flex items-center justify-between shadow-sm">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm font-bold text-[#002814]">{c.code}</span>
-                      <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">
-                        {c.discountPercent}% OFF
+              <div className="flex items-center justify-between">
+                <h3 className="font-serif text-lg font-bold text-neutral-900">Boutique Promo Codes ({coupons.length})</h3>
+                <span className="text-xs text-neutral-500 font-mono">Changes apply to live checkout instantly</span>
+              </div>
+
+              {coupons.length === 0 ? (
+                <div className="p-8 bg-white border border-neutral-200 rounded-lg text-center text-xs text-neutral-500">
+                  No promotional codes currently created.
+                </div>
+              ) : (
+                coupons.map((c: Coupon) => (
+                  <div key={c.code} className="bg-white border border-neutral-200 rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-base font-bold text-[#002814]">{c.code}</span>
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">
+                          {c.discountPercent}% OFF
+                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
+                          c.isActive ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-neutral-100 text-neutral-500'
+                        }`}>
+                          {c.isActive ? 'Active' : 'Paused'}
+                        </span>
+                      </div>
+                      <span className="text-xs text-neutral-600 mt-1 block">
+                        Min Spend: <strong className="font-mono text-neutral-900">{formatPrice(c.minSpend)}</strong> {c.description ? `· ${c.description}` : ''}
                       </span>
                     </div>
-                    <span className="text-xs text-neutral-500 mt-1 block">
-                      Min Spend: ${c.minSpend} · {c.description}
-                    </span>
+
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <button
+                        type="button"
+                        onClick={() => toggleCouponActive(c.code, !c.isActive)}
+                        className={`px-3 py-1.5 rounded text-xs font-semibold cursor-pointer transition-colors ${
+                          c.isActive 
+                            ? 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200' 
+                            : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                        }`}
+                      >
+                        {c.isActive ? 'Deactivate' : 'Activate'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => deleteCoupon(c.code)}
+                        className="p-1.5 text-rose-500 hover:text-white hover:bg-rose-600 rounded transition-colors cursor-pointer"
+                        title="Delete coupon"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                  <span className="text-xs text-emerald-700 font-semibold">Active</span>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         )}
@@ -1764,7 +1821,7 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 6: PRICING & CURRENCY CONFIGURATION */}
+        {/* TAB 6: PRICING & DELIVERY (STRICTLY PAKISTANI RUPEE - PKR) */}
         {activeTab === 'currency' && (
           <form onSubmit={handleSaveCurrencyAndPricing} className="space-y-6">
             {/* Header Banner */}
@@ -1773,177 +1830,86 @@ export const AdminDashboard: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <Coins className="w-5 h-5 text-[#D4AF37]" />
                   <h3 className="font-serif text-xl font-bold text-neutral-900">
-                    Pricing, Currency Exchange Rates & Policies
+                    Pakistani Currency (PKR / Rs.) & Delivery Configuration
                   </h3>
                 </div>
                 <p className="text-xs text-neutral-500 mt-1">
-                  Configure default boutique currency, multi-currency conversion rates (PKR, AED, SAR, GBP, USD), currency symbols, complimentary shipping rules, and tax.
+                  The boutique operates exclusively in Pakistani Rupees (PKR / Rs.). All customer checkouts, cart totals, and receipts are processed in Rs. without foreign currency conversions.
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
                 <button
-                  type="button"
-                  onClick={handleResetCurrencyRates}
-                  className="px-3.5 py-2 text-xs font-semibold text-neutral-600 bg-neutral-100 hover:bg-neutral-200 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Reset Default Rates</span>
-                </button>
-
-                <button
                   type="submit"
                   className="px-5 py-2 text-xs font-bold uppercase tracking-wider text-[#F3E5AB] bg-[#002814] hover:bg-[#001A0D] border border-[#D4AF37]/50 rounded-lg shadow transition-colors cursor-pointer"
                 >
-                  Save All Rates & Policies
+                  Save Delivery & Pricing Policies
                 </button>
               </div>
             </div>
 
-            {/* Currency Rates Matrix */}
+            {/* Currency Enforcement Card */}
             <div className="bg-white border border-neutral-200 rounded-xl p-6 shadow-sm space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3">
-                <h4 className="font-bold text-sm text-neutral-900 uppercase tracking-wider">
-                  Live Currency Exchange Matrix (Base: 1 USD)
-                </h4>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-neutral-600">Default Display Currency:</span>
-                  <select
-                    value={defaultCurrencySetting}
-                    onChange={(e: any) => setDefaultCurrencySetting(e.target.value)}
-                    className="text-xs font-bold p-1.5 bg-neutral-100 border border-neutral-300 rounded cursor-pointer"
-                  >
-                    <option value="USD">USD ($)</option>
-                    <option value="AED">AED (د.إ)</option>
-                    <option value="SAR">SAR (ر.س)</option>
-                    <option value="GBP">GBP (£)</option>
-                    <option value="PKR">PKR (Rs)</option>
-                  </select>
+              <div className="flex items-center justify-between border-b pb-3">
+                <div>
+                  <h4 className="font-bold text-sm text-neutral-900 uppercase tracking-wider">
+                    Storefront Currency: Pakistani Rupee (PKR)
+                  </h4>
+                  <p className="text-xs text-neutral-500">
+                    Permanently locked to Pakistani Rupees (Rs.). No USD, AED, SAR, or GBP conversions.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-300 rounded-lg text-emerald-900 font-bold text-xs">
+                  <span>🇵🇰 Primary & Only Currency: PKR (Rs.)</span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(['USD', 'PKR', 'AED', 'SAR', 'GBP'] as CurrencyCode[]).map((cCode) => {
-                  const cfg = currencyRatesForm[cCode] || INITIAL_CURRENCY_RATES[cCode];
-                  return (
-                    <div key={cCode} className="p-4 rounded-xl border border-neutral-200 bg-[#FDFBF7] space-y-3 shadow-2xs">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-[#002814]">{cCode}</span>
-                          {cCode === defaultCurrencySetting && (
-                            <span className="text-[9px] px-1.5 py-0.5 bg-[#002814] text-white font-bold rounded">
-                              Default
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-xs font-mono font-bold text-neutral-600">
-                          {cfg.symbol}
-                        </span>
-                      </div>
-
-                      <div className="space-y-2 text-xs">
-                        <div>
-                          <label className="text-[11px] font-semibold text-neutral-600 block mb-0.5">
-                            Exchange Rate (1 USD = ? {cCode})
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            disabled={cCode === 'USD'}
-                            value={cfg.rate}
-                            onChange={(e) => {
-                              const val = Number(e.target.value);
-                              setCurrencyRatesForm(prev => ({
-                                ...prev,
-                                [cCode]: { ...cfg, rate: val }
-                              }));
-                            }}
-                            className={`w-full p-2 text-xs border rounded font-mono font-bold ${
-                              cCode === 'USD' ? 'bg-neutral-100 text-neutral-500 cursor-not-allowed' : 'bg-white'
-                            }`}
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="text-[11px] font-semibold text-neutral-600 block mb-0.5">
-                              Symbol
-                            </label>
-                            <input
-                              type="text"
-                              value={cfg.symbol}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setCurrencyRatesForm(prev => ({
-                                  ...prev,
-                                  [cCode]: { ...cfg, symbol: val }
-                                }));
-                              }}
-                              className="w-full p-2 text-xs border rounded bg-white font-mono font-semibold"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="text-[11px] font-semibold text-neutral-600 block mb-0.5">
-                              Position
-                            </label>
-                            <select
-                              value={cfg.position}
-                              onChange={(e: any) => {
-                                const pos = e.target.value;
-                                setCurrencyRatesForm(prev => ({
-                                  ...prev,
-                                  [cCode]: { ...cfg, position: pos }
-                                }));
-                              }}
-                              className="w-full p-2 text-xs border rounded bg-white cursor-pointer"
-                            >
-                              <option value="prefix">Prefix (e.g. $100)</option>
-                              <option value="suffix">Suffix (e.g. 100 AED)</option>
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-lg flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 text-emerald-800 font-bold text-sm">
+                  Rs.
+                </div>
+                <div className="text-xs text-emerald-900">
+                  <strong>Single Currency Policy Active:</strong> All product prices, cart items, discounts, shipping fees, and orders are entered and displayed directly in Pakistani Rupees (e.g. <em>Rs. 5,500</em>).
+                </div>
               </div>
             </div>
 
-            {/* Shipping & Tax Rules */}
+            {/* Nationwide Shipping & Tax Rules */}
             <div className="bg-white border border-neutral-200 rounded-xl p-6 shadow-sm space-y-4">
               <h4 className="font-bold text-sm text-neutral-900 uppercase tracking-wider border-b pb-3">
-                Shipping & Tax Policies
+                Nationwide Pakistan Courier & Delivery Rules
               </h4>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-neutral-700 block mb-1">
-                    Free Complimentary Shipping Threshold ($)
+                    Free VIP Delivery Threshold (Rs.)
                   </label>
                   <input
                     type="number"
+                    step="100"
                     value={freeShippingThresholdSetting}
                     onChange={(e) => setFreeShippingThresholdSetting(Number(e.target.value))}
                     className="w-full p-2.5 text-xs border rounded font-mono font-semibold"
                   />
                   <span className="text-[10px] text-neutral-500 mt-1 block">
-                    Orders above this amount qualify for complimentary zero-fee delivery.
+                    Orders at or above this amount (e.g. Rs. 5,000) get zero-fee delivery.
                   </span>
                 </div>
 
                 <div>
                   <label className="text-xs font-semibold text-neutral-700 block mb-1">
-                    Standard Flat Shipping Fee ($)
+                    Standard Courier Shipping Fee (Rs.)
                   </label>
                   <input
                     type="number"
+                    step="10"
                     value={flatShippingFee}
                     onChange={(e) => setFlatShippingFee(Number(e.target.value))}
                     className="w-full p-2.5 text-xs border rounded font-mono font-semibold"
                   />
                   <span className="text-[10px] text-neutral-500 mt-1 block">
-                    Standard fee applied when order total is below complimentary threshold.
+                    Standard fee (e.g. Rs. 250) applied when total is below free delivery threshold.
                   </span>
                 </div>
 
@@ -1959,48 +1925,54 @@ export const AdminDashboard: React.FC = () => {
                     className="w-full p-2.5 text-xs border rounded font-mono font-semibold"
                   />
                   <span className="text-[10px] text-neutral-500 mt-1 block">
-                    Default 0% for tax-inclusive modesty pricing.
+                    Default 0% for tax-inclusive boutique pricing.
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Live Price Simulator */}
+            {/* Live Pakistani Price Preview Card */}
             <div className="bg-[#002814] text-white rounded-xl p-6 shadow-lg border border-[#D4AF37]/50 space-y-3">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
                   <span className="text-[#D4AF37] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Live Multi-Currency Price Simulator</span>
+                    <span>Live Pakistani Rupee Price Formatting Preview</span>
                   </span>
                   <p className="text-xs text-neutral-300 mt-0.5">
-                    Enter any baseline USD price to inspect how it converts into all regional currencies across customer checkouts.
+                    Sample price displays across the catalog, bag, and checkout:
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-neutral-300">Test USD Amount:</span>
+                  <span className="text-xs text-neutral-300">Test Amount (PKR):</span>
                   <input
                     type="number"
                     value={simulationUsdPrice}
                     onChange={(e) => setSimulationUsdPrice(Number(e.target.value))}
-                    className="w-24 p-1.5 text-xs bg-black/40 border border-white/20 rounded text-[#D4AF37] font-mono font-bold"
+                    placeholder="6500"
+                    className="w-28 p-1.5 text-xs bg-black/40 border border-white/20 rounded text-[#D4AF37] font-mono font-bold"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2">
-                {(['USD', 'AED', 'SAR', 'GBP', 'PKR'] as CurrencyCode[]).map(curr => {
-                  const cfg = currencyRatesForm[curr] || INITIAL_CURRENCY_RATES[curr];
-                  const converted = Math.round(simulationUsdPrice * cfg.rate);
-                  const formatted = cfg.position === 'prefix' ? `${cfg.symbol}${converted.toLocaleString()}` : `${converted.toLocaleString()}${cfg.symbol}`;
-                  return (
-                    <div key={curr} className="bg-black/40 border border-[#D4AF37]/30 rounded-lg p-3 text-center">
-                      <span className="text-[10px] uppercase font-bold text-neutral-400 block">{curr}</span>
-                      <span className="text-base font-bold text-white font-mono block mt-1">{formatted}</span>
-                    </div>
-                  );
-                })}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                <div className="bg-black/40 border border-[#D4AF37]/30 rounded-lg p-3 text-center">
+                  <span className="text-[10px] uppercase font-bold text-neutral-400 block">Catalog Card</span>
+                  <span className="text-base font-bold text-white font-mono block mt-1">{formatPrice(simulationUsdPrice)}</span>
+                </div>
+                <div className="bg-black/40 border border-[#D4AF37]/30 rounded-lg p-3 text-center">
+                  <span className="text-[10px] uppercase font-bold text-neutral-400 block">Bag Subtotal</span>
+                  <span className="text-base font-bold text-white font-mono block mt-1">{formatPrice(simulationUsdPrice)}</span>
+                </div>
+                <div className="bg-black/40 border border-[#D4AF37]/30 rounded-lg p-3 text-center">
+                  <span className="text-[10px] uppercase font-bold text-neutral-400 block">Free Shipping Above</span>
+                  <span className="text-base font-bold text-emerald-300 font-mono block mt-1">{formatPrice(freeShippingThresholdSetting)}</span>
+                </div>
+                <div className="bg-black/40 border border-[#D4AF37]/30 rounded-lg p-3 text-center">
+                  <span className="text-[10px] uppercase font-bold text-neutral-400 block">Standard Courier</span>
+                  <span className="text-base font-bold text-white font-mono block mt-1">{formatPrice(flatShippingFee)}</span>
+                </div>
               </div>
             </div>
 
@@ -2010,7 +1982,7 @@ export const AdminDashboard: React.FC = () => {
                 type="submit"
                 className="px-8 py-3 bg-[#002814] hover:bg-[#001A0D] text-[#F3E5AB] text-xs font-bold uppercase tracking-wider rounded-lg shadow-md border border-[#D4AF37]/60 cursor-pointer"
               >
-                Save Currency & Pricing Configuration
+                Save Pricing & Delivery Configuration
               </button>
             </div>
           </form>
@@ -2057,13 +2029,13 @@ export const AdminDashboard: React.FC = () => {
             <div className="bg-[#FAF7F0] p-4 rounded-lg border border-[#D4AF37]/40 mb-2">
               <ImageUploadField
                 label="Brand Logo Image (Direct Upload from PC or URL)"
-                value={settingsForm.logoUrl || '/src/assets/logo.svg'}
+                value={settingsForm.logoUrl || '/logo.svg'}
                 onChange={(url) => setSettingsForm({ ...settingsForm, logoUrl: url })}
                 aspectRatio="square"
                 presets={[
-                  { label: 'Emerald Emblem (Default)', img: '/src/assets/logo.svg' }
+                  { label: 'Emerald Emblem (Default)', img: '/logo.svg' }
                 ]}
-                helperText="Upload your custom brand logo from your PC or device (SVG or transparent PNG recommended). Instant sync to Firebase & displayed across storefront."
+                helperText="Upload your custom brand logo from your PC or device (SVG or transparent PNG recommended). Instant sync to Firebase & displayed across storefront without pixelation."
               />
             </div>
 
@@ -2324,12 +2296,14 @@ export const AdminDashboard: React.FC = () => {
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="font-semibold text-neutral-700 block mb-1">Price ($ USD) *</label>
+                  <label className="font-semibold text-neutral-700 block mb-1">Price (PKR Rs.) *</label>
                   <input
                     type="number"
+                    step="50"
+                    placeholder="5500"
                     value={productForm.price}
                     onChange={(e) => setProductForm({ ...productForm, price: Number(e.target.value) })}
-                    className="w-full p-2.5 border rounded font-mono"
+                    className="w-full p-2.5 border rounded font-mono font-bold"
                     required
                   />
                 </div>
@@ -2631,12 +2605,111 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="mt-4 space-y-4 text-xs">
-              <div className="bg-neutral-50 p-3 rounded space-y-1">
+              <div className="bg-neutral-50 p-3 rounded space-y-1.5 border border-neutral-200">
+                <div className="flex justify-between items-center pb-1 border-b border-neutral-200">
+                  <span className="font-bold text-neutral-800">Customer Profile:</span>
+                  <span className="font-mono text-[10px] text-neutral-500">{new Date(viewingOrder.createdAt).toLocaleDateString()}</span>
+                </div>
                 <div><strong>Client Name:</strong> {viewingOrder.customerName}</div>
                 <div><strong>Phone / WhatsApp:</strong> {viewingOrder.phone}</div>
-                <div><strong>Email:</strong> {viewingOrder.email}</div>
+                <div><strong>Email:</strong> {viewingOrder.email || 'None provided'}</div>
                 <div><strong>Delivery Address:</strong> {viewingOrder.address}, {viewingOrder.city}, {viewingOrder.country}</div>
                 {viewingOrder.orderNotes && <div><strong>Client Notes:</strong> {viewingOrder.orderNotes}</div>}
+              </div>
+
+              {/* Courier Tracking & Dispatch Controls */}
+              <div className="p-3 bg-[#FAF7F0] border border-[#D4AF37]/50 rounded-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold uppercase tracking-wider text-[#002814] flex items-center gap-1.5">
+                    <Truck className="w-3.5 h-3.5 text-[#D4AF37]" />
+                    <span>Courier & Dispatch Tracking</span>
+                  </span>
+                  <span className="text-[10px] bg-white px-2 py-0.5 rounded border font-mono">Live Sync</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[11px] font-semibold text-neutral-700 block mb-1">
+                      Courier Partner
+                    </label>
+                    <select
+                      value={orderCourierName}
+                      onChange={(e) => setOrderCourierName(e.target.value)}
+                      className="w-full p-2 bg-white border border-neutral-300 rounded text-xs font-semibold"
+                    >
+                      <option value="Trax Logistics">Trax Logistics</option>
+                      <option value="TCS Express Courier">TCS Express Courier</option>
+                      <option value="Leopard Courier">Leopard Courier</option>
+                      <option value="Call Courier">Call Courier</option>
+                      <option value="M&P Express">M&P Express</option>
+                      <option value="Atelier Concierge Hand Delivery">Atelier Hand Delivery</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-neutral-700 block mb-1">
+                      Consignment Tracking #
+                    </label>
+                    <input
+                      type="text"
+                      value={orderTrackingNum}
+                      onChange={(e) => setOrderTrackingNum(e.target.value)}
+                      placeholder="e.g. TRX-9482104PK"
+                      className="w-full p-2 bg-white border border-neutral-300 rounded text-xs font-mono font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-neutral-700 block mb-1">
+                    Estimated Delivery Timeline
+                  </label>
+                  <input
+                    type="text"
+                    value={orderEstDelivery}
+                    onChange={(e) => setOrderEstDelivery(e.target.value)}
+                    placeholder="e.g. Tomorrow by 4:00 PM / In 2 Business Days"
+                    className="w-full p-2 bg-white border border-neutral-300 rounded text-xs"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-neutral-700">Order Status:</span>
+                    <select
+                      value={viewingOrder.status}
+                      onChange={(e) => {
+                        const newStatus = e.target.value as OrderStatus;
+                        updateOrderStatus(viewingOrder.id, newStatus);
+                        setViewingOrder({ ...viewingOrder, status: newStatus });
+                      }}
+                      className="p-1.5 bg-white border border-neutral-300 rounded font-bold uppercase text-xs"
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="confirmed">Confirmed</option>
+                      <option value="processing">Processing</option>
+                      <option value="shipped">Shipped</option>
+                      <option value="delivered">Delivered</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateOrderCourier(viewingOrder.id, orderCourierName, orderTrackingNum, orderEstDelivery);
+                      setViewingOrder({
+                        ...viewingOrder,
+                        courierName: orderCourierName,
+                        trackingNumber: orderTrackingNum,
+                        estimatedDelivery: orderEstDelivery
+                      });
+                    }}
+                    className="px-3 py-1.5 bg-[#002814] text-[#F3E5AB] font-bold uppercase tracking-wider rounded text-[10px] hover:bg-[#001A0D] cursor-pointer"
+                  >
+                    Save Courier Info
+                  </button>
+                </div>
               </div>
 
               <div>
@@ -2667,7 +2740,7 @@ export const AdminDashboard: React.FC = () => {
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span>Shipping:</span>
+                  <span>Nationwide Courier:</span>
                   <span>{viewingOrder.shipping === 0 ? 'Complimentary' : formatPrice(viewingOrder.shipping)}</span>
                 </div>
                 <div className="flex justify-between font-bold text-sm text-[#002814] pt-2 border-t">
@@ -2678,7 +2751,9 @@ export const AdminDashboard: React.FC = () => {
 
               <div className="pt-3 border-t flex gap-2">
                 <a
-                  href={`https://wa.me/${viewingOrder.phone.replace(/[^0-9]/g, '')}`}
+                  href={`https://wa.me/${viewingOrder.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+                    `Assalam o Alaikum ${viewingOrder.customerName}! Following up on your Emerald Haya Order #${viewingOrder.orderNumber}.`
+                  )}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex-1 py-2.5 bg-[#002814] text-white rounded text-center font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 shadow"

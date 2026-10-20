@@ -84,6 +84,9 @@ export interface Order {
   status: OrderStatus;
   createdAt: string;
   whatsappMessageSent: boolean;
+  courierName?: string;
+  trackingNumber?: string;
+  estimatedDelivery?: string;
 }
 
 export interface Coupon {
@@ -92,6 +95,7 @@ export interface Coupon {
   minSpend: number;
   isActive: boolean;
   description: string;
+  createdAt?: string;
 }
 
 export interface Review {

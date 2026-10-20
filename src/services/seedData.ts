@@ -1,4 +1,4 @@
-import { Product, Category, HeroSlide, Coupon, StoreSettings, BlogPost, Review } from '../types';
+import { Product, Category, HeroSlide, Coupon, StoreSettings, BlogPost, Review, Order } from '../types';
 
 import heroLuxuryImg from '../assets/images/hero_luxury_abaya_1791077080316.jpg';
 import dubaiSilkImg from '../assets/images/category_dubai_silk_1791077094623.jpg';
@@ -11,11 +11,11 @@ export const KIMONO_IMAGE = openKimonoImg;
 export const ATELIER_IMAGE = craftsmanshipImg;
 
 export const INITIAL_CURRENCY_RATES = {
-  USD: { rate: 1.0, symbol: '$', position: 'prefix' as const },
-  AED: { rate: 3.67, symbol: ' AED', position: 'suffix' as const },
-  SAR: { rate: 3.75, symbol: ' SAR', position: 'suffix' as const },
-  GBP: { rate: 0.79, symbol: '£', position: 'prefix' as const },
-  PKR: { rate: 278.0, symbol: 'Rs. ', position: 'prefix' as const }
+  PKR: { rate: 1.0, symbol: 'Rs. ', position: 'prefix' as const },
+  USD: { rate: 0.0036, symbol: '$', position: 'prefix' as const },
+  AED: { rate: 0.013, symbol: ' AED', position: 'suffix' as const },
+  SAR: { rate: 0.0135, symbol: ' SAR', position: 'suffix' as const },
+  GBP: { rate: 0.0028, symbol: '£', position: 'prefix' as const }
 };
 
 export const INITIAL_NAV_MENU_ITEMS = [
@@ -36,13 +36,13 @@ export const INITIAL_SETTINGS: StoreSettings = {
   whatsappNumber: '+92316217618',
   storeEmail: 'info@emeraldhaya.store',
   storePhone: '+92316217618',
-  address: 'Emerald Haya Atelier, Pakistan · Worldwide Express Delivery',
-  freeShippingThreshold: 250,
-  standardShippingFee: 15,
+  address: 'Emerald Haya Atelier, Pakistan · Nationwide Express Courier Delivery',
+  freeShippingThreshold: 5000,
+  standardShippingFee: 250,
   taxPercent: 0,
-  currency: 'USD',
+  currency: 'PKR',
   googleFormUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSc_Example/viewform?embedded=true',
-  announcementText: 'Complimentary Silk Sheila Hijab with every Luxury Abaya order · WhatsApp: +92 316 217618',
+  announcementText: 'Complimentary Nationwide Delivery on orders above Rs. 5,000 · WhatsApp: +92 316 217618',
   instagramUrl: 'https://instagram.com/emeraldhayaofficial',
   facebookUrl: 'https://facebook.com/emeraldhayaofficial',
   tiktokUrl: 'https://tiktok.com/@emeraldhayaofficial',
@@ -118,9 +118,81 @@ export const INITIAL_CATEGORIES: Category[] = [
 ];
 
 export const INITIAL_COUPONS: Coupon[] = [
-  { code: 'EMERALD20', discountPercent: 20, minSpend: 150, isActive: true, description: '20% OFF on all luxury abayas for orders above $150' },
-  { code: 'WELCOME10', discountPercent: 10, minSpend: 80, isActive: true, description: '10% OFF for new Emerald Haya connoisseurs' },
-  { code: 'RAMADAN25', discountPercent: 25, minSpend: 300, isActive: true, description: '25% OFF exclusive Festive Haute Couture collection' }
+  { code: 'EMERALD20', discountPercent: 20, minSpend: 4000, isActive: true, description: '20% OFF on luxury abayas for orders above Rs. 4,000' },
+  { code: 'WELCOME10', discountPercent: 10, minSpend: 2500, isActive: true, description: '10% OFF for new patrons for orders above Rs. 2,500' },
+  { code: 'RAMADAN25', discountPercent: 25, minSpend: 6000, isActive: true, description: '25% OFF Festive Haute Couture for orders above Rs. 6,000' },
+  { code: 'HAYA15', discountPercent: 15, minSpend: 3500, isActive: true, description: '15% Special Discount on orders above Rs. 3,500' }
+];
+
+export const INITIAL_ORDERS: Order[] = [
+  {
+    id: 'ord-84920',
+    orderNumber: 'EH-84920',
+    customerName: 'Ayesha Malik',
+    phone: '03001234567',
+    email: 'ayesha.malik@gmail.com',
+    address: 'House 42, Street 8, Phase 5, DHA',
+    city: 'Lahore',
+    postalCode: '54000',
+    country: 'Pakistan',
+    orderNotes: 'Please call before dispatch',
+    items: [
+      {
+        productId: 'EH-DB-001',
+        productName: 'Sultana Royal Embroidered Dubai Abaya',
+        sku: 'EH-DB-001',
+        price: 6800,
+        selectedSize: '54',
+        selectedColor: 'Obsidian Black',
+        quantity: 1,
+        image: DUBAI_IMAGE
+      }
+    ],
+    subtotal: 6800,
+    discount: 0,
+    shipping: 0,
+    total: 6800,
+    status: 'shipped',
+    courierName: 'Trax Logistics',
+    trackingNumber: 'TRX-9482104PK',
+    estimatedDelivery: 'Tomorrow by 4:00 PM',
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    whatsappMessageSent: true
+  },
+  {
+    id: 'ord-92144',
+    orderNumber: 'EH-92144',
+    customerName: 'Fatima Zahra',
+    phone: '0316217618',
+    email: 'fatima.z@gmail.com',
+    address: 'Apartment 4B, Clifton Block 2',
+    city: 'Karachi',
+    postalCode: '75600',
+    country: 'Pakistan',
+    orderNotes: 'Deliver between 10am - 5pm',
+    items: [
+      {
+        productId: 'EH-LX-001',
+        productName: 'The Sovereign 24K Gold Embroidered Abaya',
+        sku: 'EH-LX-001',
+        price: 14500,
+        selectedSize: '56',
+        selectedColor: 'Deep Emerald',
+        quantity: 1,
+        image: ATELIER_IMAGE
+      }
+    ],
+    subtotal: 14500,
+    discount: 1450,
+    shipping: 0,
+    total: 13050,
+    status: 'processing',
+    courierName: 'TCS Express Courier',
+    trackingNumber: 'TCS-83920194PK',
+    estimatedDelivery: 'In 2 Business Days',
+    createdAt: new Date(Date.now() - 86400000).toISOString(),
+    whatsappMessageSent: true
+  }
 ];
 
 export const INITIAL_BLOG_POSTS: BlogPost[] = [
@@ -221,7 +293,7 @@ function generate150Products(): Product[] {
       category: 'Abayas & Kimonos',
       prefix: 'EH-DB',
       count: 16,
-      basePrice: 280,
+      basePrice: 6500,
       materials: ['Pure Korean Nida', 'Japanese Silk Crepe', 'Embossed Royal Chiffon', 'Medina Silk'],
       colors: ['Emerald Green', 'Obsidian Black', 'Desert Champagne', 'Midnight Navy', 'Pewter Grey'],
       titles: [
@@ -247,7 +319,7 @@ function generate150Products(): Product[] {
       category: 'Modest Co-Ords & Sets',
       prefix: 'EH-SD',
       count: 14,
-      basePrice: 240,
+      basePrice: 5800,
       materials: ['Grade-A Saudi Crepe', 'Korean Nida Obsidian', 'Matte Silk Wool Blend', 'Crinkled Georgette'],
       colors: ['Noir Black', 'Deep Olive', 'Midnight Navy', 'Charcoal Slate'],
       titles: [
@@ -271,7 +343,7 @@ function generate150Products(): Product[] {
       category: 'Luxury Collection',
       prefix: 'EH-LX',
       count: 14,
-      basePrice: 420,
+      basePrice: 14500,
       materials: ['Italian Silk Organza', 'Korean Heavyweight Nida', 'French Chantilly Lace', 'Pure Raw Silk'],
       colors: ['Deep Emerald', 'Noir Jet', 'Champagne Gold', 'Royal Amethyst', 'Antique Rose'],
       titles: [
@@ -295,7 +367,7 @@ function generate150Products(): Product[] {
       category: 'Open Abayas',
       prefix: 'EH-OP',
       count: 12,
-      basePrice: 195,
+      basePrice: 4800,
       materials: ['Japanese Crepe', 'Lightweight Korean Nida', 'Matte Twill', 'Bamboo Viscose'],
       colors: ['Sage Green', 'Dusty Rose', 'Charcoal Black', 'Soft Taupe', 'Navy Blue'],
       titles: [
@@ -317,7 +389,7 @@ function generate150Products(): Product[] {
       category: 'Kimono Abayas',
       prefix: 'EH-KM',
       count: 12,
-      basePrice: 210,
+      basePrice: 5200,
       materials: ['Japanese Peach Skin Fabric', 'Korean Matte Nida', 'Crepe de Chine', 'Washed Cupro'],
       colors: ['Olive Drab', 'Earthy Terracotta', 'Obsidian Black', 'Sand Beige', 'Emerald Tint'],
       titles: [
@@ -339,7 +411,7 @@ function generate150Products(): Product[] {
       category: 'Farasha Abayas',
       prefix: 'EH-FR',
       count: 10,
-      basePrice: 230,
+      basePrice: 6200,
       materials: ['Korean Chiffon Poly', 'Silky Nida', 'Georgette Crepe'],
       colors: ['Midnight Black', 'Deep Maroon', 'Forest Green', 'Royal Plum', 'Espresso Brown'],
       titles: [
@@ -359,7 +431,7 @@ function generate150Products(): Product[] {
       category: 'Nida Abayas',
       prefix: 'EH-ND',
       count: 14,
-      basePrice: 185,
+      basePrice: 6800,
       materials: ['100% Authentic Korean Nida', 'Korean Micro-Nida', 'Peach Nida Premium'],
       colors: ['Classic Jet Black', 'Deep Teal', 'Charcoal', 'Navy Blue', 'Coffee Brown'],
       titles: [
@@ -383,7 +455,7 @@ function generate150Products(): Product[] {
       category: 'Butterfly Abayas',
       prefix: 'EH-BT',
       count: 10,
-      basePrice: 215,
+      basePrice: 6400,
       materials: ['Flowing Crepe', 'Korean Silk Georgette', 'Featherlight Nida'],
       colors: ['Noir Black', 'Burgundy', 'Pine Green', 'Charcoal Grey'],
       titles: [
@@ -403,7 +475,7 @@ function generate150Products(): Product[] {
       category: 'Printed Abayas',
       prefix: 'EH-PR',
       count: 10,
-      basePrice: 205,
+      basePrice: 5500,
       materials: ['Digital Printed Satin Crepe', 'Printed Silk Georgette', 'Viscose Twill'],
       colors: ['Floral Emerald', 'Monochrome Arabesque', 'Marbled Gold & Black', 'Indigo Paisley'],
       titles: [
@@ -423,7 +495,7 @@ function generate150Products(): Product[] {
       category: 'Party Wear',
       prefix: 'EH-PW',
       count: 12,
-      basePrice: 320,
+      basePrice: 9500,
       materials: ['Metallic Brocade', 'Sequin Embroidered Mesh', 'Crushed Velvet', 'Heavy Satin'],
       colors: ['Gilded Gold', 'Emerald Glitter', 'Midnight Onyx', 'Burgundy Wine', 'Champagne Pearl'],
       titles: [
@@ -445,7 +517,7 @@ function generate150Products(): Product[] {
       category: 'Casual Wear',
       prefix: 'EH-CW',
       count: 12,
-      basePrice: 155,
+      basePrice: 4200,
       materials: ['Pre-Washed Pure Linen', 'Cotton Crepe', 'Rayon Twill', 'Bamboo Modal'],
       colors: ['Warm Oatmeal', 'Moss Green', 'Jet Black', 'Denim Blue', 'Soft Khaki'],
       titles: [
@@ -467,7 +539,7 @@ function generate150Products(): Product[] {
       category: 'Prayer Abayas',
       prefix: 'EH-PA',
       count: 10,
-      basePrice: 95,
+      basePrice: 3800,
       materials: ['Organic Cotton Rayon', 'Cooling Modal', 'Breathable Jersey'],
       colors: ['Ivory Cream', 'Sage Whisper', 'Muted Rose', 'Pure White', 'Charcoal'],
       titles: [
@@ -487,7 +559,7 @@ function generate150Products(): Product[] {
       category: 'Premium Collection',
       prefix: 'EH-PM',
       count: 14,
-      basePrice: 340,
+      basePrice: 12000,
       materials: ['Italian Matte Silk', 'Heavyweight Dubai Crepe', 'Raw Silk Weave'],
       colors: ['Emerald Forest', 'Smoky Quartz', 'Midnight Ink', 'Desert Camel', 'Dusty Lavender'],
       titles: [
@@ -511,7 +583,7 @@ function generate150Products(): Product[] {
       category: 'Hijabs & Accessories',
       prefix: 'EH-AC',
       count: 12,
-      basePrice: 45,
+      basePrice: 1200,
       materials: ['Medina Silk', 'Luxury Chiffon Georgette', 'Modal Jersey', '24K Gold Plated Alloy'],
       colors: ['Emerald Match', 'Champagne Nude', 'Jet Black', 'Dusty Rose', 'Pearl Off-White'],
       titles: [
@@ -533,7 +605,7 @@ function generate150Products(): Product[] {
       category: 'Abaya & Stole Combo Deals',
       prefix: 'EH-DL',
       count: 10,
-      basePrice: 320,
+      basePrice: 8500,
       materials: ['Pure Korean Nida & Medina Silk', 'Dubai Silk Crepe & Chiffon', 'Saudi Crepe & Organza'],
       colors: ['Emerald & Champagne Duo', 'Obsidian Noir & Gold', 'Desert Rose & Taupe', 'Midnight Navy & Silver'],
       titles: [
@@ -553,7 +625,7 @@ function generate150Products(): Product[] {
       category: 'Stoles & Sheilas',
       prefix: 'EH-ST',
       count: 12,
-      basePrice: 55,
+      basePrice: 1850,
       materials: ['Pure Medina Silk', 'Turkish Chiffon', 'Crinkled Georgette', 'Bamboo Modal', 'Raw Silk Blend'],
       colors: ['Desert Sand', 'Emerald Royale', 'Obsidian Black', 'Dusty Rose', 'Champagne Glow', 'Pewter Slate'],
       titles: [
@@ -575,7 +647,7 @@ function generate150Products(): Product[] {
       category: 'Magnetic Pins & Brooches',
       prefix: 'EH-PN',
       count: 10,
-      basePrice: 28,
+      basePrice: 950,
       materials: ['Neodymium Ultra-Hold Magnets', '24K Gold Plated Alloy', 'Austrian Crystal', 'Enamel Jewel'],
       colors: ['Matte Gold', 'Rose Gold', 'Emerald Green', 'Platinum Silver', 'Jet Obsidian'],
       titles: [

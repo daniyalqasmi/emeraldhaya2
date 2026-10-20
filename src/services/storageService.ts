@@ -16,7 +16,8 @@ import {
   INITIAL_HERO_SLIDES, 
   INITIAL_REVIEWS,
   INITIAL_CURRENCY_RATES,
-  INITIAL_NAV_MENU_ITEMS
+  INITIAL_NAV_MENU_ITEMS,
+  INITIAL_ORDERS
 } from './seedData';
 import { db } from './firebaseConfig';
 import { 
@@ -78,7 +79,29 @@ export const StorageService = {
       const stored = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Verify if products need PKR price calibration (e.g. if previous prices were stored in old USD numbers < 1000)
+          let needsCalibration = false;
+          const calibrated = parsed.map((p: Product) => {
+            if (typeof p.price === 'number' && p.price < 900) {
+              needsCalibration = true;
+              const convertedPrice = Math.max(950, Math.round((p.price * 25) / 50) * 50);
+              return {
+                ...p,
+                price: convertedPrice,
+                oldPrice: p.oldPrice && p.oldPrice < 900 ? Math.round((p.oldPrice * 25) / 50) * 50 : p.oldPrice
+              };
+            }
+            return p;
+          });
+
+          if (needsCalibration) {
+            localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(calibrated));
+            return calibrated;
+          }
+
+          return parsed;
+        }
       }
     } catch (e) {
       console.error('Error reading products from storage:', e);
@@ -224,11 +247,23 @@ export const StorageService = {
   getOrders(): Order[] {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.ORDERS);
-      if (stored) return JSON.parse(stored);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
     } catch (e) {
       console.error('Error reading orders:', e);
     }
-    return [];
+    this.saveAllOrders(INITIAL_ORDERS);
+    return INITIAL_ORDERS;
+  },
+
+  saveAllOrders(orders: Order[]): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+    } catch (e) {
+      console.error('Error saving all orders:', e);
+    }
   },
 
   saveOrder(order: Order): void {
@@ -243,6 +278,8 @@ export const StorageService = {
         const cleanOrder = cleanFirestoreData({
           ...order,
           orderNotes: order.orderNotes || '',
+          courierName: order.courierName || 'Pakistan Express Courier',
+          trackingNumber: order.trackingNumber || `TRK-${order.orderNumber.replace(/[^0-9]/g, '')}`,
           savedAt: new Date().toISOString()
         });
         setDoc(doc(firestore, 'orders', order.id), cleanOrder, { merge: true }).catch((err) => {
@@ -273,11 +310,47 @@ export const StorageService = {
     return updated;
   },
 
+  updateOrderCourier(orderId: string, courierName: string, trackingNumber: string, estimatedDelivery?: string): Order[] {
+    const orders = this.getOrders();
+    const updated = orders.map((ord) => 
+      ord.id === orderId 
+        ? { 
+            ...ord, 
+            courierName, 
+            trackingNumber, 
+            estimatedDelivery: estimatedDelivery !== undefined ? estimatedDelivery : ord.estimatedDelivery 
+          } 
+        : ord
+    );
+    try {
+      localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+      const firestore = db;
+      if (firestore) {
+        setDoc(
+          doc(firestore, 'orders', orderId),
+          cleanFirestoreData({ 
+            courierName, 
+            trackingNumber, 
+            estimatedDelivery: estimatedDelivery || '', 
+            updatedAt: new Date().toISOString() 
+          }),
+          { merge: true }
+        ).catch(() => {});
+      }
+    } catch (e) {
+      console.error('Error updating order courier info:', e);
+    }
+    return updated;
+  },
+
   // Coupons
   getCoupons(): Coupon[] {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.COUPONS);
-      if (stored) return JSON.parse(stored);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
     } catch (e) {
       console.error('Error reading coupons:', e);
     }
@@ -304,6 +377,20 @@ export const StorageService = {
     }
   },
 
+  deleteCoupon(code: string): Coupon[] {
+    const coupons = this.getCoupons();
+    const updated = coupons.filter((c) => c.code.toUpperCase() !== code.toUpperCase());
+    this.saveCoupons(updated);
+    return updated;
+  },
+
+  toggleCouponActive(code: string, isActive: boolean): Coupon[] {
+    const coupons = this.getCoupons();
+    const updated = coupons.map((c) => (c.code.toUpperCase() === code.toUpperCase() ? { ...c, isActive } : c));
+    this.saveCoupons(updated);
+    return updated;
+  },
+
   // Settings
   getSettings(): StoreSettings {
     try {
@@ -313,6 +400,9 @@ export const StorageService = {
         return {
           ...INITIAL_SETTINGS,
           ...parsed,
+          currency: 'PKR', // Strictly enforce Pakistani Rupees
+          freeShippingThreshold: parsed.freeShippingThreshold && parsed.freeShippingThreshold >= 1000 ? parsed.freeShippingThreshold : 5000,
+          standardShippingFee: parsed.standardShippingFee !== undefined && parsed.standardShippingFee >= 0 ? parsed.standardShippingFee : 250,
           isComingSoonActive: parsed.isComingSoonActive ?? false,
           currencyRates: parsed.currencyRates || INITIAL_CURRENCY_RATES,
           navMenuItems: parsed.navMenuItems || INITIAL_NAV_MENU_ITEMS
@@ -676,8 +766,15 @@ export const StorageService = {
       if (activeSettingsSnap && activeSettingsSnap.exists()) {
         const remoteSettings = activeSettingsSnap.data() as StoreSettings;
         if (remoteSettings.brandName) {
-          result.settings = remoteSettings;
-          localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(remoteSettings));
+          const enforcedSettings: StoreSettings = {
+            ...INITIAL_SETTINGS,
+            ...remoteSettings,
+            currency: 'PKR', // Strictly enforce Pakistani currency
+            freeShippingThreshold: remoteSettings.freeShippingThreshold && remoteSettings.freeShippingThreshold >= 1000 ? remoteSettings.freeShippingThreshold : 5000,
+            standardShippingFee: remoteSettings.standardShippingFee !== undefined && remoteSettings.standardShippingFee >= 0 ? remoteSettings.standardShippingFee : 250,
+          };
+          result.settings = enforcedSettings;
+          localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(enforcedSettings));
         }
       }
 
